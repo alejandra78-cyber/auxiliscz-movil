@@ -43,20 +43,20 @@ class HomeScreen extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: () => Navigator.pushNamed(context, '/vehicle/register'),
             icon: const Icon(Icons.directions_car),
-            label: const Text('Registrar vehículo (CU10)'),
+            label: const Text('Registrar vehículo'),
           ),
           const SizedBox(height: 10),
           ElevatedButton.icon(
             onPressed: () => Navigator.pushNamed(context, '/emergency/report'),
             icon: const Icon(Icons.emergency_share),
-            label: const Text('Reportar emergencia (CU11-CU13)'),
+            label: const Text('Reportar emergencia'),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: () => Navigator.pushNamed(context, '/recover'),
             icon: const Icon(Icons.lock_reset),
-            label: const Text('Recuperar contraseña (CU05)'),
+            label: const Text('Recuperar contraseña'),
           ),
         ],
       ),
