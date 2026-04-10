@@ -1,55 +1,77 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
-import 'screens/emergencia_screen.dart';
-import 'screens/seguimiento_screen.dart';
-import 'screens/calificacion_screen.dart';
+
+import 'core/storage/token_storage.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/screens/recover_password_screen.dart';
+import 'features/auth/presentation/screens/register_screen.dart';
+import 'features/emergencies/presentation/screens/emergency_status_screen.dart';
+import 'features/emergencies/presentation/screens/report_emergency_screen.dart';
+import 'features/home/presentation/screens/home_screen.dart';
+import 'features/vehicles/presentation/screens/register_vehicle_screen.dart';
+import 'shared/theme/app_theme.dart';
 
 void main() {
-  runApp(const AuxilioSCZApp());
+  runApp(const AuxiliSczApp());
 }
 
-class AuxilioSCZApp extends StatelessWidget {
-  const AuxilioSCZApp({super.key});
+class AuxiliSczApp extends StatelessWidget {
+  const AuxiliSczApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AuxilioSCZ',
-      theme: ThemeData(
-        primaryColor: const Color(0xFF1f3a7a),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1f3a7a),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
-      home: const HomeScreen(),
+      title: 'AuxiliSCZ',
+      theme: buildAppTheme(),
+      home: const _BootstrapScreen(),
       routes: {
-        '/emergencia': (context) => const EmergenciaScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/recover': (context) => const RecoverPasswordScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/vehicle/register': (context) => const RegisterVehicleScreen(),
+        '/emergency/report': (context) => const ReportEmergencyScreen(),
       },
       onGenerateRoute: (settings) {
-        if (settings.name == '/seguimiento') {
-          final args = settings.arguments as Map<String, dynamic>;
+        if (settings.name == '/emergency-status') {
+          final incidenteId = settings.arguments as String;
           return MaterialPageRoute(
-            builder: (context) => SeguimientoScreen(
-              incidenteId: args['incidenteId'],
-              latCliente: args['latCliente'],
-              lngCliente: args['lngCliente'],
-            ),
-          );
-        }
-        if (settings.name == '/calificacion') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (context) => CalificacionScreen(
-              incidenteId: args['incidenteId'],
-              nombreTaller: args['nombreTaller'],
-            ),
+            builder: (_) => EmergencyStatusScreen(incidenteId: incidenteId),
           );
         }
         return null;
       },
+    );
+  }
+}
+
+class _BootstrapScreen extends StatefulWidget {
+  const _BootstrapScreen();
+
+  @override
+  State<_BootstrapScreen> createState() => _BootstrapScreenState();
+}
+
+class _BootstrapScreenState extends State<_BootstrapScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkToken();
+  }
+
+  Future<void> _checkToken() async {
+    final token = await TokenStorage().readToken();
+    if (!mounted) return;
+    if (token != null && token.isNotEmpty) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      Navigator.pushReplacementNamed(context, '/login');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }
