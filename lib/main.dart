@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'core/notifications/push_notifications_service.dart';
 import 'core/storage/token_storage.dart';
+import 'features/auth/data/auth_api.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/recover_password_screen.dart';
 import 'features/auth/presentation/screens/register_screen.dart';
@@ -59,9 +61,13 @@ class _BootstrapScreenState extends State<_BootstrapScreen> {
   }
 
   Future<void> _checkToken() async {
+    await PushNotificationsService.instance.initialize();
     final token = await TokenStorage().readToken();
     if (!mounted) return;
     if (token != null && token.isNotEmpty) {
+      try {
+        await AuthApi().syncPushTokenIfPossible();
+      } catch (_) {}
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       Navigator.pushReplacementNamed(context, '/login');

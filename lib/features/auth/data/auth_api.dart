@@ -1,4 +1,5 @@
 import '../../../core/network/api_client.dart';
+import '../../../core/notifications/push_notifications_service.dart';
 import '../../../core/storage/token_storage.dart';
 
 class AuthApi {
@@ -35,9 +36,19 @@ class AuthApi {
     }
     final json = ApiClient.decodeJsonMap(res.body);
     await _tokenStorage.saveToken((json['access_token'] ?? '').toString());
+    await syncPushTokenIfPossible();
   }
 
-  Future<void> logout() => _tokenStorage.clearToken();
+  Future<void> logout() async {
+    final pushToken = await PushNotificationsService.instance.getDeviceToken();
+    if (pushToken != null && pushToken.isNotEmpty) {
+      await _apiClient.post('/auth/device-token/remove', body: {
+        'token': pushToken,
+        'plataforma': PushNotificationsService.instance.platformName,
+      });
+    }
+    await _tokenStorage.clearToken();
+  }
 
   Future<String?> getToken() => _tokenStorage.readToken();
 
@@ -60,5 +71,24 @@ class AuthApi {
     if (res.statusCode != 200) {
       throw Exception('No se pudo restablecer contraseña: ${res.body}');
     }
+  }
+
+  Future<void> registerDeviceToken({
+    required String token,
+    String? plataforma,
+  }) async {
+    final res = await _apiClient.post('/auth/device-token', body: {
+      'token': token,
+      'plataforma': plataforma ?? PushNotificationsService.instance.platformName,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo registrar token del dispositivo: ${res.body}');
+    }
+  }
+
+  Future<void> syncPushTokenIfPossible() async {
+    final token = await PushNotificationsService.instance.getDeviceToken();
+    if (token == null || token.isEmpty) return;
+    await registerDeviceToken(token: token);
   }
 }
