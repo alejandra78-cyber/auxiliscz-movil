@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../routes/app_routes.dart';
 import '../services/emergencias_api.dart';
+import '../../vehiculos/services/vehiculos_api.dart';
 import '../../../shared/theme/app_theme.dart';
 
 class ReportEmergencyScreen extends StatefulWidget {
@@ -15,12 +16,46 @@ class ReportEmergencyScreen extends StatefulWidget {
 
 class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   final _api = EmergenciesApi();
-  final _vehiculoIdCtrl = TextEditingController();
+  final _vehicleApi = VehicleApi();
   final _descripcionCtrl = TextEditingController();
   final _picker = ImagePicker();
+  List<VehicleOption> _vehiculos = const [];
+  String? _vehiculoIdSelected;
+  bool _loadingVehiculos = true;
+  String _vehiculosError = '';
   XFile? _image;
   Position? _position;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicles();
+  }
+
+  Future<void> _loadVehicles() async {
+    setState(() {
+      _loadingVehiculos = true;
+      _vehiculosError = '';
+    });
+    try {
+      final data = await _vehicleApi.myVehicles();
+      if (!mounted) return;
+      setState(() {
+        _vehiculos = data;
+        _vehiculoIdSelected = data.isNotEmpty ? data.first.id : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _vehiculosError = '$e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingVehiculos = false);
+      }
+    }
+  }
 
   Future<void> _getLocation() async {
     bool enabled = await Geolocator.isLocationServiceEnabled();
@@ -44,11 +79,18 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   }
 
   Future<void> _submit() async {
+    if (_vehiculoIdSelected == null || _vehiculoIdSelected!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona un vehículo para continuar')),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
     try {
       _position ??= await Geolocator.getCurrentPosition();
       final incidenteId = await _api.reportEmergency(
-        vehiculoId: _vehiculoIdCtrl.text.trim(),
+        vehiculoId: _vehiculoIdSelected!,
         lat: _position!.latitude,
         lng: _position!.longitude,
         descripcion: _descripcionCtrl.text.trim(),
@@ -61,7 +103,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       );
 
       if (_image != null) {
-        await _api.uploadImage(incidenteId: incidenteId, imagePath: _image!.path);
+        await _api.uploadImage(incidenteId: incidenteId, image: _image!);
       }
 
       if (!mounted) return;
@@ -94,7 +136,57 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  TextField(controller: _vehiculoIdCtrl, decoration: const InputDecoration(labelText: 'ID vehículo')),
+                  if (_loadingVehiculos)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: LinearProgressIndicator(minHeight: 3),
+                    )
+                  else if (_vehiculosError.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No se pudieron cargar tus vehículos',
+                          style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(_vehiculosError, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _loadVehicles,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    )
+                  else if (_vehiculos.isEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Aún no tienes vehículos registrados'),
+                        const SizedBox(height: 6),
+                        TextButton.icon(
+                          onPressed: () => Navigator.pushNamed(context, AppRoutes.vehiculoRegister),
+                          icon: const Icon(Icons.directions_car),
+                          label: const Text('Registrar vehículo'),
+                        ),
+                      ],
+                    )
+                  else
+                    DropdownButtonFormField<String>(
+                      value: _vehiculoIdSelected,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Vehículo (placa)'),
+                      items: _vehiculos
+                          .map(
+                            (v) => DropdownMenuItem<String>(
+                              value: v.id,
+                              child: Text(v.label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) => setState(() => _vehiculoIdSelected = value),
+                    ),
                 ],
               ),
             ),

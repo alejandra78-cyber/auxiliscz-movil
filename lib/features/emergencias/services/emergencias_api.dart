@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/network/api_client.dart';
 
@@ -40,8 +41,13 @@ class EmergenciesApi {
     }
   }
 
-  Future<void> uploadImage({required String incidenteId, required String imagePath}) async {
-    final file = await http.MultipartFile.fromPath('imagen', imagePath);
+  Future<void> uploadImage({required String incidenteId, required XFile image}) async {
+    final bytes = await image.readAsBytes();
+    final file = http.MultipartFile.fromBytes(
+      'imagen',
+      bytes,
+      filename: image.name.isNotEmpty ? image.name : 'evidencia.jpg',
+    );
     final res = await _apiClient.multipart('/emergencias/solicitud/$incidenteId/imagenes', fields: {}, files: [file]);
     final raw = await res.stream.bytesToString();
     if (res.statusCode != 200) {
@@ -55,5 +61,39 @@ class EmergenciesApi {
       throw Exception('No se pudo consultar estado: ${res.body}');
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> cancelEmergency(String incidenteId) async {
+    final res = await _apiClient.patch('/emergencias/solicitud/$incidenteId/cancelar');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo cancelar la solicitud: ${res.body}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getTechnicianLocation(String incidenteId) async {
+    final res = await _apiClient.get('/clientes/solicitudes/$incidenteId/tecnico-ubicacion');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo obtener ubicación del técnico: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> getMessages(String incidenteId) async {
+    final res = await _apiClient.get('/emergencias/solicitud/$incidenteId/mensajes');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudieron obtener mensajes: ${res.body}');
+    }
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> sendMessage(String incidenteId, String texto) async {
+    final res = await _apiClient.post('/emergencias/solicitud/$incidenteId/mensajes', body: {
+      'texto': texto,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo enviar mensaje: ${res.body}');
+    }
   }
 }
