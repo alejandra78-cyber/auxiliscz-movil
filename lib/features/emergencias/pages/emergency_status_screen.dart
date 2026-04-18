@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../data/emergencies_api.dart';
+import '../services/emergencias_api.dart';
 
 class EmergencyStatusScreen extends StatefulWidget {
   const EmergencyStatusScreen({super.key, required this.incidenteId});

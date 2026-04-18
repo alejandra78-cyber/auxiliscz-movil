@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../data/emergencies_api.dart';
-import '../../../../shared/theme/app_theme.dart';
+import '../../../routes/app_routes.dart';
+import '../services/emergencias_api.dart';
+import '../../../shared/theme/app_theme.dart';
 
 class ReportEmergencyScreen extends StatefulWidget {
   const ReportEmergencyScreen({super.key});
@@ -64,7 +65,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       }
 
       if (!mounted) return;
-      Navigator.pushNamed(context, '/emergency-status', arguments: incidenteId);
+      Navigator.pushNamed(context, AppRoutes.emergenciaStatus, arguments: incidenteId);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));

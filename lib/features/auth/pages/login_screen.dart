@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/auth_api.dart';
-import '../../../../shared/theme/app_theme.dart';
+import '../../../routes/app_routes.dart';
+import '../services/auth_api.dart';
+import '../../../shared/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await _api.login(email: _emailCtrl.text.trim(), password: _passwordCtrl.text.trim());
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
@@ -66,11 +67,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/register'),
+                    onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
                     child: const Text('Crear cuenta'),
                   ),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/recover'),
+                    onPressed: () => Navigator.pushNamed(context, AppRoutes.recover),
                     child: const Text('Recuperar contraseña'),
                   ),
                 ],
