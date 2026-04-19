@@ -31,7 +31,9 @@ class AppRoutes {
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     if (settings.name == emergenciaStatus) {
-      final incidenteId = settings.arguments as String;
+      final incidenteId = (settings.arguments is String)
+          ? (settings.arguments as String)
+          : '';
       return MaterialPageRoute(
         builder: (_) => EmergencyStatusScreen(incidenteId: incidenteId),
       );

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../routes/app_routes.dart';
 import '../services/emergencias_api.dart';
 
 class EmergencyStatusScreen extends StatefulWidget {
@@ -16,7 +17,7 @@ class EmergencyStatusScreen extends StatefulWidget {
   State<EmergencyStatusScreen> createState() => _EmergencyStatusScreenState();
 }
 
-class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
+class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with WidgetsBindingObserver {
   final _api = EmergenciesApi();
   final _msgCtrl = TextEditingController();
 
@@ -31,6 +32,12 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
   late DateTime _fechaReferencia;
   bool _sending = false;
   bool _loadingSolicitudes = true;
+  bool _refreshing = false;
+  bool _showMap = false;
+  String _error = '';
+  static const _finalStates = {'completada', 'cancelada', 'rechazada'};
+
+  bool get _isCurrentFinalState => _finalStates.contains('${_estado?['estado'] ?? ''}');
 
   double? _toDouble(dynamic value) {
     if (value == null) return null;
@@ -41,11 +48,18 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
   @override
   void initState() {
     super.initState();
-    _incidenteId = widget.incidenteId;
+    WidgetsBinding.instance.addObserver(this);
+    _incidenteId = widget.incidenteId.trim();
     _fechaReferencia = DateTime.now();
     _cargarSolicitudes();
-    _refresh();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
+    if (_incidenteId.isNotEmpty) {
+      _refresh();
+    }
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_incidenteId.isNotEmpty && !_isCurrentFinalState) {
+        _refresh();
+      }
+    });
   }
 
   String get _codigoReferencia {
@@ -73,23 +87,37 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
       if (!mounted) return;
       setState(() {
         _solicitudes = rows;
+        _error = '';
         final exists = rows.any((e) => '${e['incidente_id']}' == _incidenteId);
-        if (!exists && rows.isNotEmpty) {
+        if ((!exists || _incidenteId.isEmpty) && rows.isNotEmpty) {
           _incidenteId = '${rows.first['incidente_id']}';
         }
       });
+      if (_incidenteId.isNotEmpty) {
+        await _refresh();
+      }
     } catch (_) {
-      // mantenemos fallback con incidente actual
+      if (!mounted) return;
+      setState(() {
+        _error = 'No se pudieron cargar las solicitudes. Verifica sesión y backend.';
+      });
     } finally {
       if (mounted) setState(() => _loadingSolicitudes = false);
     }
   }
 
   Future<void> _refresh() async {
+    if (_refreshing || _incidenteId.isEmpty) return;
+    _refreshing = true;
     try {
-      final data = await _api.getEmergencyStatus(_incidenteId);
-      final mensajes = await _api.getMessages(_incidenteId);
-      final notificaciones = await _api.getNotifications(incidenteId: _incidenteId);
+      final results = await Future.wait([
+        _api.getEmergencyStatus(_incidenteId),
+        _api.getMessages(_incidenteId),
+        _api.getNotifications(incidenteId: _incidenteId),
+      ]);
+      final data = results[0] as Map<String, dynamic>;
+      final mensajes = results[1] as List<Map<String, dynamic>>;
+      final notificaciones = results[2] as List<Map<String, dynamic>>;
       final estado = '${data['estado'] ?? ''}';
       Map<String, dynamic>? tecnico;
       if (estado == 'asignada' || estado == 'en_proceso') {
@@ -107,8 +135,20 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
         _mensajes = mensajes;
         _notificaciones = notificaciones;
         _tecnicoUbicacion = tecnico;
+        _error = '';
       });
-    } catch (_) {}
+      if (_isCurrentFinalState) {
+        _timer?.cancel();
+        _timer = null;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'No se pudo cargar el estado de la solicitud: $e';
+      });
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> _sendGpsAgain() async {
@@ -160,21 +200,70 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _msgCtrl.dispose();
     super.dispose();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.detached) {
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _timer == null) {
+      _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (_incidenteId.isNotEmpty && !_isCurrentFinalState) {
+          _refresh();
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final estado = '${_estado?['estado'] ?? 'consultando...'}';
     final puedeVerTecnico = estado == 'asignada' || estado == 'en_proceso';
+    final selectedExists = _solicitudes.any((s) => '${s['incidente_id']}' == _incidenteId);
+    final selectedValue = selectedExists ? _incidenteId : null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Consultar Estado de solicitud')),
+      appBar: AppBar(
+        title: const Text('Consultar Estado de solicitud'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () async {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+              return;
+            }
+            await Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
+          },
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _solicitudes.isEmpty
+                      ? 'Solicitudes disponibles: 0'
+                      : 'Solicitudes disponibles: ${_solicitudes.length}',
+                  style: const TextStyle(color: Color(0xFF667085)),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _loadingSolicitudes ? null : _cargarSolicitudes,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Recargar'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           if (_loadingSolicitudes)
             const Padding(
               padding: EdgeInsets.only(bottom: 8),
@@ -182,7 +271,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             ),
           if (_solicitudes.isNotEmpty)
             DropdownButtonFormField<String>(
-              value: _incidenteId,
+              value: selectedValue,
               decoration: const InputDecoration(labelText: 'Solicitud'),
               items: _solicitudes
                   .map((s) {
@@ -199,16 +288,69 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
                 setState(() {
                   _incidenteId = value;
                   _tecnicoUbicacion = null;
+                  _showMap = false;
                 });
                 _refresh();
               },
             ),
+          if (_solicitudes.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Text('Mis solicitudes', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            ..._solicitudes.map((s) {
+              final id = '${s['incidente_id']}';
+              final codigo = (s['codigo_solicitud'] ?? '').toString();
+              final tipo = (s['tipo'] ?? 'incierto').toString();
+              final st = (s['estado'] ?? '').toString();
+              final isSelected = id == _incidenteId;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  selected: isSelected,
+                  selectedTileColor: const Color(0xFFEAF0FF),
+                  title: Text('${codigo.isNotEmpty ? codigo : id.substring(0, 8)} · $tipo'),
+                  subtitle: Text('Estado: $st'),
+                  trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF1F3A7A)) : null,
+                  onTap: () {
+                    if (id == _incidenteId) return;
+                    setState(() {
+                      _incidenteId = id;
+                      _tecnicoUbicacion = null;
+                      _showMap = false;
+                    });
+                    _refresh();
+                  },
+                ),
+              );
+            }),
+          ],
+          if (_solicitudes.isEmpty && !_loadingSolicitudes)
+            const Text('No hay solicitudes disponibles para mostrar.'),
+          if (_error.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(_error, style: const TextStyle(color: Colors.red)),
+          ],
           const SizedBox(height: 12),
           Text('Referencia: $_codigoReferencia'),
           const SizedBox(height: 8),
           Text('Fecha y hora: $_fechaHoraTexto'),
           const SizedBox(height: 8),
           Text('Estado: $estado'),
+          if (estado == 'completada' || estado == 'cancelada' || estado == 'rechazada') ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF4ED),
+                border: Border.all(color: const Color(0xFFFFD6AE)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Esta solicitud ya finalizó. Para continuar, reporta una nueva emergencia.',
+                style: TextStyle(color: Color(0xFF9A3412)),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Text('Tipo: ${_estado?['tipo'] ?? '-'}'),
           const SizedBox(height: 8),
@@ -223,6 +365,18 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             child: const Text('Enviar ubicación GPS nuevamente'),
           ),
           const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.emergenciaReport),
+            icon: const Icon(Icons.add_alert),
+            label: const Text('Reportar nueva emergencia'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false),
+            icon: const Icon(Icons.home),
+            label: const Text('Volver al inicio'),
+          ),
+          const SizedBox(height: 8),
           ElevatedButton(
             onPressed: puedeVerTecnico ? _verUbicacionTecnico : null,
             child: const Text('Ver ubicación del técnico'),
@@ -233,38 +387,47 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             Text('Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
             Text('Ubicación: ${_tecnicoUbicacion!['lat'] ?? '-'}, ${_tecnicoUbicacion!['lng'] ?? '-'}'),
             if (_toDouble(_tecnicoUbicacion!['lat']) != null && _toDouble(_tecnicoUbicacion!['lng']) != null) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 230,
-                child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: LatLng(
-                      _toDouble(_tecnicoUbicacion!['lat'])!,
-                      _toDouble(_tecnicoUbicacion!['lng'])!,
-                    ),
-                    initialZoom: 15,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.auxilioscz.app',
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          width: 44,
-                          height: 44,
-                          point: LatLng(
-                            _toDouble(_tecnicoUbicacion!['lat'])!,
-                            _toDouble(_tecnicoUbicacion!['lng'])!,
-                          ),
-                          child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 6),
+              OutlinedButton(
+                onPressed: () => setState(() => _showMap = !_showMap),
+                child: Text(_showMap ? 'Ocultar mapa' : 'Mostrar mapa'),
               ),
+            ],
+            if (_toDouble(_tecnicoUbicacion!['lat']) != null && _toDouble(_tecnicoUbicacion!['lng']) != null) ...[
+              if (_showMap) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 230,
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: LatLng(
+                        _toDouble(_tecnicoUbicacion!['lat'])!,
+                        _toDouble(_tecnicoUbicacion!['lng'])!,
+                      ),
+                      initialZoom: 15,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.auxilioscz.app',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            width: 44,
+                            height: 44,
+                            point: LatLng(
+                              _toDouble(_tecnicoUbicacion!['lat'])!,
+                              _toDouble(_tecnicoUbicacion!['lng'])!,
+                            ),
+                            child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ],
           const SizedBox(height: 18),
