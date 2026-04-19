@@ -12,16 +12,42 @@ class EmergenciesApi {
 
   Future<String> reportEmergency({
     required String vehiculoId,
+    required String tipo,
     required double lat,
     required double lng,
     required String descripcion,
+    XFile? foto,
+    XFile? audio,
   }) async {
+    final files = <http.MultipartFile>[];
+    if (foto != null) {
+      final fotoBytes = await foto.readAsBytes();
+      files.add(
+        http.MultipartFile.fromBytes(
+          'foto',
+          fotoBytes,
+          filename: foto.name.isNotEmpty ? foto.name : 'foto_emergencia.jpg',
+        ),
+      );
+    }
+    if (audio != null) {
+      final audioBytes = await audio.readAsBytes();
+      files.add(
+        http.MultipartFile.fromBytes(
+          'audio',
+          audioBytes,
+          filename: audio.name.isNotEmpty ? audio.name : 'audio_emergencia.webm',
+        ),
+      );
+    }
+
     final res = await _apiClient.multipart('/emergencias/reportar', fields: {
       'vehiculo_id': vehiculoId,
+      'tipo': tipo,
       'lat': lat.toString(),
       'lng': lng.toString(),
       'descripcion': descripcion,
-    });
+    }, files: files);
 
     final raw = await res.stream.bytesToString();
     if (res.statusCode != 200) {
@@ -63,6 +89,14 @@ class EmergenciesApi {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getLatestEmergencyStatus() async {
+    final res = await _apiClient.get('/clientes/solicitudes/ultima/estado');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo consultar tu última solicitud: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<void> cancelEmergency(String incidenteId) async {
     final res = await _apiClient.patch('/emergencias/solicitud/$incidenteId/cancelar');
     if (res.statusCode != 200) {
@@ -95,5 +129,28 @@ class EmergenciesApi {
     if (res.statusCode != 200) {
       throw Exception('No se pudo enviar mensaje: ${res.body}');
     }
+  }
+
+  Future<List<Map<String, dynamic>>> getTrackRequests() async {
+    final res = await _apiClient.get('/clientes/solicitudes/seguimiento');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo obtener solicitudes: ${res.body}');
+    }
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getNotifications({String? incidenteId}) async {
+    final query = (incidenteId != null && incidenteId.isNotEmpty)
+        ? '?incidente_id=$incidenteId'
+        : '';
+    final res = await _apiClient.get('/emergencias/notificaciones$query');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudieron obtener notificaciones: ${res.body}');
+    }
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map<String, dynamic>>().toList();
   }
 }

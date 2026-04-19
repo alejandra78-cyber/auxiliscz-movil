@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -15,6 +16,16 @@ class ReportEmergencyScreen extends StatefulWidget {
 }
 
 class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
+  static const List<String> _tiposIncidente = [
+    'bateria',
+    'llanta',
+    'motor',
+    'choque',
+    'llave',
+    'otro',
+    'incierto',
+  ];
+
   final _api = EmergenciesApi();
   final _vehicleApi = VehicleApi();
   final _descripcionCtrl = TextEditingController();
@@ -24,8 +35,10 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   bool _loadingVehiculos = true;
   String _vehiculosError = '';
   XFile? _image;
+  XFile? _audio;
   Position? _position;
   bool _loading = false;
+  String _tipoSelected = 'otro';
 
   @override
   void initState() {
@@ -78,6 +91,25 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
     }
   }
 
+  Future<void> _pickAudio() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'webm'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    XFile? audio;
+    if (file.bytes != null) {
+      audio = XFile.fromData(file.bytes!, name: file.name, mimeType: 'audio/*');
+    } else if (file.path != null && file.path!.isNotEmpty) {
+      audio = XFile(file.path!);
+    }
+    if (audio != null) {
+      setState(() => _audio = audio);
+    }
+  }
+
   Future<void> _submit() async {
     if (_vehiculoIdSelected == null || _vehiculoIdSelected!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,9 +123,12 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       _position ??= await Geolocator.getCurrentPosition();
       final incidenteId = await _api.reportEmergency(
         vehiculoId: _vehiculoIdSelected!,
+        tipo: _tipoSelected,
         lat: _position!.latitude,
         lng: _position!.longitude,
         descripcion: _descripcionCtrl.text.trim(),
+        foto: _image,
+        audio: _audio,
       );
 
       await _api.sendGps(
@@ -101,10 +136,6 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
         lat: _position!.latitude,
         lng: _position!.longitude,
       );
-
-      if (_image != null) {
-        await _api.uploadImage(incidenteId: incidenteId, image: _image!);
-      }
 
       if (!mounted) return;
       Navigator.pushNamed(context, AppRoutes.emergenciaStatus, arguments: incidenteId);
@@ -173,19 +204,41 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                       ],
                     )
                   else
-                    DropdownButtonFormField<String>(
-                      value: _vehiculoIdSelected,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Vehículo (placa)'),
-                      items: _vehiculos
-                          .map(
-                            (v) => DropdownMenuItem<String>(
-                              value: v.id,
-                              child: Text(v.label),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) => setState(() => _vehiculoIdSelected = value),
+                    Column(
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _vehiculoIdSelected,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Vehículo (placa)'),
+                          items: _vehiculos
+                              .map(
+                                (v) => DropdownMenuItem<String>(
+                                  value: v.id,
+                                  child: Text(v.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) => setState(() => _vehiculoIdSelected = value),
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          value: _tipoSelected,
+                          decoration: const InputDecoration(labelText: 'Tipo de incidente'),
+                          items: _tiposIncidente
+                              .map(
+                                (tipo) => DropdownMenuItem<String>(
+                                  value: tipo,
+                                  child: Text(tipo),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _tipoSelected = value);
+                            }
+                          },
+                        ),
+                      ],
                     ),
                 ],
               ),
@@ -200,6 +253,9 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
           const SizedBox(height: 10),
           OutlinedButton(onPressed: _pickImage, child: const Text('Tomar/Cargar imagen')),
           if (_image != null) Text('Imagen seleccionada: ${_image!.name}'),
+          const SizedBox(height: 10),
+          OutlinedButton(onPressed: _pickAudio, child: const Text('Cargar audio')),
+          if (_audio != null) Text('Audio seleccionado: ${_audio!.name}'),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loading ? null : _submit,
