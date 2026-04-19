@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../services/emergencias_api.dart';
 
@@ -29,6 +31,12 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
   late DateTime _fechaReferencia;
   bool _sending = false;
   bool _loadingSolicitudes = true;
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
 
   @override
   void initState() {
@@ -82,11 +90,23 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
       final data = await _api.getEmergencyStatus(_incidenteId);
       final mensajes = await _api.getMessages(_incidenteId);
       final notificaciones = await _api.getNotifications(incidenteId: _incidenteId);
+      final estado = '${data['estado'] ?? ''}';
+      Map<String, dynamic>? tecnico;
+      if (estado == 'asignada' || estado == 'en_proceso') {
+        try {
+          tecnico = await _api.getTechnicianLocation(_incidenteId);
+        } catch (_) {
+          tecnico = _tecnicoUbicacion;
+        }
+      } else {
+        tecnico = null;
+      }
       if (!mounted) return;
       setState(() {
         _estado = data;
         _mensajes = mensajes;
         _notificaciones = notificaciones;
+        _tecnicoUbicacion = tecnico;
       });
     } catch (_) {}
   }
@@ -194,6 +214,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
           const SizedBox(height: 8),
           Text('Prioridad: ${_estado?['prioridad'] ?? '-'}'),
           const SizedBox(height: 8),
+          Text('Taller asignado: ${_estado?['taller_nombre'] ?? '-'}'),
+          const SizedBox(height: 8),
           Text('Resumen IA: ${_estado?['resumen_ia'] ?? 'Sin resumen disponible'}'),
           const SizedBox(height: 12),
           ElevatedButton(
@@ -210,45 +232,150 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             Text('Técnico: ${_tecnicoUbicacion!['tecnico_nombre'] ?? '-'}'),
             Text('Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
             Text('Ubicación: ${_tecnicoUbicacion!['lat'] ?? '-'}, ${_tecnicoUbicacion!['lng'] ?? '-'}'),
+            if (_toDouble(_tecnicoUbicacion!['lat']) != null && _toDouble(_tecnicoUbicacion!['lng']) != null) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 230,
+                child: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: LatLng(
+                      _toDouble(_tecnicoUbicacion!['lat'])!,
+                      _toDouble(_tecnicoUbicacion!['lng'])!,
+                    ),
+                    initialZoom: 15,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.auxilioscz.app',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          width: 44,
+                          height: 44,
+                          point: LatLng(
+                            _toDouble(_tecnicoUbicacion!['lat'])!,
+                            _toDouble(_tecnicoUbicacion!['lng'])!,
+                          ),
+                          child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 18),
           const Text('Comunicación', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          TextField(
-            controller: _msgCtrl,
-            maxLines: 2,
-            decoration: const InputDecoration(labelText: 'Mensaje para el taller'),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: _sending ? null : _enviarMensaje,
-            child: Text(_sending ? 'Enviando...' : 'Enviar mensaje'),
-          ),
-          const SizedBox(height: 8),
-          if (_mensajes.isNotEmpty)
-            ..._mensajes.map(
-              (m) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text((m['texto'] ?? '').toString()),
-                subtitle: Text('${m['autor_rol'] ?? ''} · ${m['creado_en'] ?? ''}'),
-              ),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: const Color(0xFFE8EDF8)),
+              borderRadius: BorderRadius.circular(10),
             ),
-          if (_mensajes.isEmpty) const Text('Sin mensajes para esta solicitud'),
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Chat de la solicitud', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                if (_mensajes.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Aún no hay mensajes para esta solicitud'),
+                  ),
+                if (_mensajes.isNotEmpty)
+                  ..._mensajes.map((m) {
+                    final role = ((m['autor_rol'] ?? '').toString()).toLowerCase();
+                    final outgoing = role == 'conductor' || role == 'cliente';
+                    return Align(
+                      alignment: outgoing ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        decoration: BoxDecoration(
+                          color: outgoing ? const Color(0xFF1F3A7A) : const Color(0xFFEAF0FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: outgoing ? const Color(0xFF1F3A7A) : const Color(0xFFD8E3FF),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${m['autor_rol'] ?? ''} · ${m['creado_en'] ?? ''}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: outgoing ? const Color(0xFFDCE6FF) : const Color(0xFF667085),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              (m['texto'] ?? '').toString(),
+                              style: TextStyle(color: outgoing ? Colors.white : const Color(0xFF101828)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _msgCtrl,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Mensaje para el taller',
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _sending ? null : _enviarMensaje,
+                      child: Text(_sending ? 'Enviando...' : 'Enviar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           const Text('Notificaciones', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
+          if (_notificaciones.isEmpty) const Text('Sin notificaciones para esta solicitud'),
           if (_notificaciones.isNotEmpty)
             ..._notificaciones.map(
-              (n) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text((n['titulo'] ?? '').toString()),
-                subtitle: Text('${n['mensaje'] ?? ''}\n${n['creada_en'] ?? ''}'),
-                isThreeLine: true,
+              (n) => Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: const Color(0xFFE8EDF8)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text((n['titulo'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text((n['mensaje'] ?? '').toString()),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${n['tipo'] ?? ''} · ${n['estado'] ?? ''} · ${n['creada_en'] ?? ''}',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF667085)),
+                    ),
+                  ],
+                ),
               ),
             ),
-          if (_notificaciones.isEmpty) const Text('Sin notificaciones para esta solicitud'),
         ],
       ),
     );

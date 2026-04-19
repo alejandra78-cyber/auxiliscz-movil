@@ -54,25 +54,48 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 6),
                   const Text('Inicia sesión para continuar', style: TextStyle(color: AppColors.textMuted)),
                   const SizedBox(height: 16),
-                  TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Email')),
+                  TextField(
+                    controller: _emailCtrl,
+                    style: const TextStyle(color: Color(0xFF101828)),
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      labelStyle: TextStyle(color: Color(0xFF344054)),
+                      hintStyle: TextStyle(color: Color(0xFF667085)),
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: _passwordCtrl, decoration: const InputDecoration(labelText: 'Contraseña'), obscureText: true),
+                  TextField(
+                    controller: _passwordCtrl,
+                    style: const TextStyle(color: Color(0xFF101828)),
+                    decoration: const InputDecoration(
+                      labelText: 'Contraseña',
+                      labelStyle: TextStyle(color: Color(0xFF344054)),
+                      hintStyle: TextStyle(color: Color(0xFF667085)),
+                    ),
+                    obscureText: true,
+                  ),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _loading ? null : _submit,
-                      child: Text(_loading ? 'Ingresando...' : 'Iniciar sesión'),
+                      child: Text(
+                        _loading ? 'Ingresando...' : 'Iniciar sesión',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
                   TextButton(
                     onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
-                    child: const Text('Crear cuenta'),
+                    child: const Text('Crear cuenta', style: TextStyle(color: AppColors.primary)),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pushNamed(context, AppRoutes.recover),
-                    child: const Text('Recuperar contraseña'),
+                    child: const Text('Recuperar contraseña', style: TextStyle(color: AppColors.primary)),
                   ),
                 ],
               ),

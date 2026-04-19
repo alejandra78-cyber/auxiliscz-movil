@@ -112,6 +112,26 @@ class EmergenciesApi {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  Future<List<Map<String, dynamic>>> getMyActiveServicesAsTechnician() async {
+    final res = await _apiClient.get('/taller/mi-taller/servicios/activos');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudieron obtener servicios activos: ${res.body}');
+    }
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> updateMyTechnicianLocation({required double lat, required double lng}) async {
+    final res = await _apiClient.patch('/taller/tecnicos/mi-ubicacion', body: {
+      'lat': lat,
+      'lng': lng,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo actualizar ubicación del técnico: ${res.body}');
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getMessages(String incidenteId) async {
     final res = await _apiClient.get('/emergencias/solicitud/$incidenteId/mensajes');
     if (res.statusCode != 200) {
