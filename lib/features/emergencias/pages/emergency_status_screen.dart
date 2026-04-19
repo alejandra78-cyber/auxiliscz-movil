@@ -293,37 +293,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
                 _refresh();
               },
             ),
-          if (_solicitudes.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Text('Mis solicitudes', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            ..._solicitudes.map((s) {
-              final id = '${s['incidente_id']}';
-              final codigo = (s['codigo_solicitud'] ?? '').toString();
-              final tipo = (s['tipo'] ?? 'incierto').toString();
-              final st = (s['estado'] ?? '').toString();
-              final isSelected = id == _incidenteId;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 6),
-                child: ListTile(
-                  selected: isSelected,
-                  selectedTileColor: const Color(0xFFEAF0FF),
-                  title: Text('${codigo.isNotEmpty ? codigo : id.substring(0, 8)} · $tipo'),
-                  subtitle: Text('Estado: $st'),
-                  trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF1F3A7A)) : null,
-                  onTap: () {
-                    if (id == _incidenteId) return;
-                    setState(() {
-                      _incidenteId = id;
-                      _tecnicoUbicacion = null;
-                      _showMap = false;
-                    });
-                    _refresh();
-                  },
-                ),
-              );
-            }),
-          ],
           if (_solicitudes.isEmpty && !_loadingSolicitudes)
             const Text('No hay solicitudes disponibles para mostrar.'),
           if (_error.isNotEmpty) ...[
