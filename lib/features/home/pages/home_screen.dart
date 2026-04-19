@@ -16,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _role = '';
+  bool _openingConsulta = false;
 
   @override
   void initState() {
@@ -43,6 +44,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openConsulta(BuildContext context) async {
+    if (_openingConsulta) return;
+    setState(() => _openingConsulta = true);
     final api = EmergenciesApi();
     String? incidenteId;
     try {
@@ -53,15 +56,21 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No se encontró una solicitud para consultar')),
         );
+        if (mounted) setState(() => _openingConsulta = false);
         return;
       }
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) setState(() => _openingConsulta = false);
       return;
     }
-    if (!context.mounted) return;
-    Navigator.pushNamed(context, AppRoutes.emergenciaStatus, arguments: incidenteId);
+    if (!context.mounted) {
+      if (mounted) setState(() => _openingConsulta = false);
+      return;
+    }
+    await Navigator.pushNamed(context, AppRoutes.emergenciaStatus, arguments: incidenteId);
+    if (mounted) setState(() => _openingConsulta = false);
   }
 
   bool get _isTecnico => _role == 'tecnico';
@@ -115,9 +124,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 10),
             ElevatedButton.icon(
-              onPressed: () => _openConsulta(context),
+              onPressed: _openingConsulta ? null : () => _openConsulta(context),
               icon: const Icon(Icons.search),
-              label: const Text('Consultar emergencia'),
+              label: Text(_openingConsulta ? 'Abriendo...' : 'Consultar emergencia'),
             ),
           ],
           if (_isTecnico) ...[
