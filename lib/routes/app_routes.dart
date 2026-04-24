@@ -22,7 +22,9 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes => {
         login: (context) => const LoginScreen(),
         register: (context) => const RegisterScreen(),
-        recover: (context) => const RecoverPasswordScreen(),
+        recover: (context) => RecoverPasswordScreen(
+              initialToken: _tokenFromArgs(ModalRoute.of(context)?.settings.arguments),
+            ),
         home: (context) => const HomeScreen(),
         vehiculoRegister: (context) => const RegisterVehicleScreen(),
         emergenciaReport: (context) => const ReportEmergencyScreen(),
@@ -30,6 +32,14 @@ class AppRoutes {
       };
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+    if (settings.name != null && settings.name!.startsWith(recover)) {
+      final uri = Uri.tryParse(settings.name!);
+      final token = uri?.queryParameters['reset_token'];
+      return MaterialPageRoute(
+        builder: (_) => RecoverPasswordScreen(initialToken: token),
+        settings: settings,
+      );
+    }
     if (settings.name == emergenciaStatus) {
       final incidenteId = (settings.arguments is String)
           ? (settings.arguments as String)
@@ -37,6 +47,15 @@ class AppRoutes {
       return MaterialPageRoute(
         builder: (_) => EmergencyStatusScreen(incidenteId: incidenteId),
       );
+    }
+    return null;
+  }
+
+  static String? _tokenFromArgs(Object? args) {
+    if (args is String && args.trim().isNotEmpty) return args.trim();
+    if (args is Map<String, dynamic>) {
+      final token = args['reset_token'] ?? args['token'];
+      if (token is String && token.trim().isNotEmpty) return token.trim();
     }
     return null;
   }

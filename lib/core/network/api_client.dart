@@ -43,6 +43,14 @@ class ApiClient {
     );
   }
 
+  Future<http.Response> put(String path, {Map<String, dynamic>? body}) async {
+    return http.put(
+      _uri(path),
+      headers: await _headers(jsonContent: true),
+      body: body != null ? jsonEncode(body) : null,
+    );
+  }
+
   Future<http.StreamedResponse> multipart(
     String path, {
     required Map<String, String> fields,

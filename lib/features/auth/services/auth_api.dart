@@ -11,14 +11,17 @@ class AuthApi {
 
   Future<void> register({
     required String nombre,
+    required String apellido,
     required String email,
+    required String telefono,
     required String password,
   }) async {
+    final fullName = '${nombre.trim()} ${apellido.trim()}'.trim();
     final res = await _apiClient.post('/auth/register', body: {
-      'nombre': nombre,
+      'nombre': fullName,
       'email': email,
+      'telefono': telefono,
       'password': password,
-      'rol': 'conductor',
     });
     if (res.statusCode != 200) {
       throw Exception('No se pudo registrar usuario: ${res.body}');
@@ -41,15 +44,22 @@ class AuthApi {
 
   Future<String?> getToken() => _tokenStorage.readToken();
 
-  Future<String?> requestRecoveryToken(String email) async {
+  Future<void> requestRecoveryToken(String email) async {
     final res = await _apiClient.post('/auth/password/recovery-request', body: {
       'email': email,
     });
     if (res.statusCode != 200) {
       throw Exception('No se pudo solicitar recuperación: ${res.body}');
     }
-    final json = ApiClient.decodeJsonMap(res.body);
-    return json['reset_token']?.toString();
+  }
+
+  Future<void> validateResetToken(String token) async {
+    final res = await _apiClient.post('/auth/password/validate-token', body: {
+      'reset_token': token,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('Token inválido o expirado');
+    }
   }
 
   Future<void> resetPassword({required String token, required String newPassword}) async {

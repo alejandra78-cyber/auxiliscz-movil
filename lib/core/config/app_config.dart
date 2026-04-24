@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 
 class AppConfig {
   static String get baseUrl {
-    // 🔥 ESTO ES LO IMPORTANTE (para APK y web)
     const fromEnv = String.fromEnvironment('API_BASE_URL');
     if (fromEnv.isNotEmpty) return fromEnv;
 
@@ -15,9 +14,9 @@ class AppConfig {
       return 'http://127.0.0.1:8000/api';
     }
 
-    // Android emulator
+    // 🔥 ANDROID (CELULAR REAL)
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8000/api';
+      return 'http://192.168.0.108:8000/api';
     }
 
     // iOS

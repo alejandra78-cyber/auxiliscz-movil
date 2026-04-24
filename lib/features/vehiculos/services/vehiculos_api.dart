@@ -8,12 +8,22 @@ class VehicleOption {
     required this.placa,
     this.marca,
     this.modelo,
+    this.anio,
+    this.color,
+    this.tipo,
+    this.observacion,
+    this.activo = true,
   });
 
   final String id;
   final String placa;
   final String? marca;
   final String? modelo;
+  final int? anio;
+  final String? color;
+  final String? tipo;
+  final String? observacion;
+  final bool activo;
 
   String get label {
     final parts = <String>[placa];
@@ -28,6 +38,11 @@ class VehicleOption {
       placa: (json['placa'] ?? '').toString(),
       marca: json['marca']?.toString(),
       modelo: json['modelo']?.toString(),
+      anio: json['anio'] is int ? json['anio'] as int : int.tryParse('${json['anio'] ?? ''}'),
+      color: json['color']?.toString(),
+      tipo: json['tipo']?.toString(),
+      observacion: json['observacion']?.toString(),
+      activo: json['activo'] is bool ? json['activo'] as bool : true,
     );
   }
 }
@@ -42,21 +57,57 @@ class VehicleApi {
     required String marca,
     required String modelo,
     required int anio,
-    required String color,
+    String? color,
+    String? tipo,
+    String? observacion,
   }) async {
-    final res = await _apiClient.post('/clientes/vehiculos', body: {
+    final body = <String, dynamic>{
       'placa': placa,
       'marca': marca,
       'modelo': modelo,
       'anio': anio,
-      'color': color,
-    });
+    };
+    if ((color ?? '').trim().isNotEmpty) body['color'] = color!.trim();
+    if ((tipo ?? '').trim().isNotEmpty) body['tipo'] = tipo!.trim();
+    if ((observacion ?? '').trim().isNotEmpty) body['observacion'] = observacion!.trim();
+    final res = await _apiClient.post('/clientes/vehiculos', body: body);
     if (res.statusCode != 200) {
       throw Exception('No se pudo registrar vehículo: ${res.body}');
     }
   }
 
-  Future<List<VehicleOption>> myVehicles() async {
+  Future<void> updateVehicle({
+    required String id,
+    required String marca,
+    required String modelo,
+    required int anio,
+    String? color,
+    String? tipo,
+    String? observacion,
+  }) async {
+    final body = <String, dynamic>{
+      'marca': marca,
+      'modelo': modelo,
+      'anio': anio,
+    };
+    if ((color ?? '').trim().isNotEmpty) body['color'] = color!.trim();
+    if ((tipo ?? '').trim().isNotEmpty) body['tipo'] = tipo!.trim();
+    if ((observacion ?? '').trim().isNotEmpty) body['observacion'] = observacion!.trim();
+
+    final res = await _apiClient.put('/clientes/vehiculos/$id', body: body);
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo actualizar vehículo: ${res.body}');
+    }
+  }
+
+  Future<void> deactivateVehicle(String id) async {
+    final res = await _apiClient.patch('/clientes/vehiculos/$id/desactivar');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo desactivar vehículo: ${res.body}');
+    }
+  }
+
+  Future<List<VehicleOption>> myVehicles({bool onlyActive = true}) async {
     final res = await _apiClient.get('/clientes/vehiculos');
     if (res.statusCode != 200) {
       throw Exception('No se pudo obtener vehículos: ${res.body}');
@@ -72,6 +123,7 @@ class VehicleApi {
         .whereType<Map<String, dynamic>>()
         .map(VehicleOption.fromJson)
         .where((v) => v.id.isNotEmpty && v.placa.isNotEmpty)
+        .where((v) => !onlyActive || v.activo)
         .toList();
   }
 }
