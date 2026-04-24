@@ -35,9 +35,26 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
   bool _refreshing = false;
   bool _showMap = false;
   String _error = '';
-  static const _finalStates = {'completada', 'cancelada', 'rechazada'};
+  static const _finalStates = {'completada', 'completado', 'cancelada', 'rechazada', 'finalizado'};
+  static const _cancelableStates = {
+    'pendiente',
+    'en_revision',
+    'en_evaluacion',
+    'aceptada',
+    'asignada',
+    'tecnico_asignado',
+    'pendiente_respuesta',
+  };
 
-  bool get _isCurrentFinalState => _finalStates.contains('${_estado?['estado'] ?? ''}');
+  bool get _isCurrentFinalState => _finalStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
+
+  String _stateKey(String? value) => (value ?? '').trim().toLowerCase().replaceAll(' ', '_');
+
+  bool get _canCancelFromState {
+    final apiFlag = _estado?['es_cancelable'];
+    if (apiFlag is bool) return apiFlag;
+    return _cancelableStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
+  }
 
   double? _toDouble(dynamic value) {
     if (value == null) return null;
@@ -55,7 +72,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
     if (_incidenteId.isNotEmpty) {
       _refresh();
     }
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (_incidenteId.isNotEmpty && !_isCurrentFinalState) {
         _refresh();
       }
@@ -198,6 +215,41 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
     }
   }
 
+  Future<void> _cancelarSolicitud() async {
+    final estado = '${_estado?['estado'] ?? ''}';
+    if (!_canCancelFromState) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se puede cancelar en estado: $estado')),
+      );
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar solicitud'),
+        content: const Text('¿Seguro que deseas cancelar esta solicitud?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sí, cancelar')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await _api.cancelEmergency(_incidenteId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Solicitud cancelada correctamente')),
+      );
+      await _refresh();
+      await _cargarSolicitudes();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -214,7 +266,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
       return;
     }
     if (state == AppLifecycleState.resumed && _timer == null) {
-      _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _timer = Timer.periodic(const Duration(seconds: 10), (_) {
         if (_incidenteId.isNotEmpty && !_isCurrentFinalState) {
           _refresh();
         }
@@ -305,7 +357,21 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
           Text('Fecha y hora: $_fechaHoraTexto'),
           const SizedBox(height: 8),
           Text('Estado: $estado'),
-          if (estado == 'completada' || estado == 'cancelada' || estado == 'rechazada') ...[
+          const SizedBox(height: 8),
+          if (_canCancelFromState)
+            ElevatedButton.icon(
+              onPressed: _cancelarSolicitud,
+              icon: const Icon(Icons.cancel_outlined),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB42318)),
+              label: const Text('Cancelar solicitud'),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.block),
+              label: const Text('Solicitud no cancelable en este estado'),
+            ),
+          if (_isCurrentFinalState) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(10),

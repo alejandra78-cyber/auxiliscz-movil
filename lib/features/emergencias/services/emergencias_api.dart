@@ -16,15 +16,16 @@ class EmergenciesApi {
     required double lat,
     required double lng,
     required String descripcion,
-    XFile? foto,
+    List<XFile> fotos = const [],
     XFile? audio,
   }) async {
     final files = <http.MultipartFile>[];
-    if (foto != null) {
+    for (var i = 0; i < fotos.length; i++) {
+      final foto = fotos[i];
       final fotoBytes = await foto.readAsBytes();
       files.add(
         http.MultipartFile.fromBytes(
-          'foto',
+          i == 0 ? 'foto' : 'fotos',
           fotoBytes,
           filename: foto.name.isNotEmpty ? foto.name : 'foto_emergencia.jpg',
         ),
