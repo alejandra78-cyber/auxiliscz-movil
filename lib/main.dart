@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'core/storage/token_storage.dart';
-import 'routes/app_routes.dart';
+import 'features/auth/pages/login_screen.dart';
+import 'routes/app_routes.dart'; // 👈 ESTE FALTABA
 import 'shared/theme/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const AuxiliSczApp());
 }
 
@@ -15,42 +16,11 @@ class AuxiliSczApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'AuxiliSCZ',
+      debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const _BootstrapScreen(),
+      home: const LoginScreen(),
       routes: AppRoutes.routes,
       onGenerateRoute: AppRoutes.onGenerateRoute,
-    );
-  }
-}
-
-class _BootstrapScreen extends StatefulWidget {
-  const _BootstrapScreen();
-
-  @override
-  State<_BootstrapScreen> createState() => _BootstrapScreenState();
-}
-
-class _BootstrapScreenState extends State<_BootstrapScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _checkToken();
-  }
-
-  Future<void> _checkToken() async {
-    final token = await TokenStorage().readToken();
-    if (!mounted) return;
-    if (token != null && token.isNotEmpty) {
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
-    } else {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
     );
   }
 }

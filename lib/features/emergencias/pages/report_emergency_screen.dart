@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -30,6 +33,11 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   final _vehicleApi = VehicleApi();
   final _descripcionCtrl = TextEditingController();
   final _picker = ImagePicker();
+  final _recorder = AudioRecorder();
+  bool _isRecording = false;
+
+  StreamSubscription<Position>? _gpsSubscription;
+
   List<VehicleOption> _vehiculos = const [];
   String? _vehiculoIdSelected;
   bool _loadingVehiculos = true;
@@ -38,6 +46,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   XFile? _audio;
   Position? _position;
   bool _loading = false;
+  bool _trackingGps = false;
   String _tipoSelected = 'otro';
 
   @override
@@ -51,6 +60,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       _loadingVehiculos = true;
       _vehiculosError = '';
     });
+
     try {
       final data = await _vehicleApi.myVehicles();
       if (!mounted) return;
@@ -60,54 +70,107 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _vehiculosError = '$e';
-      });
+      setState(() => _vehiculosError = '$e');
     } finally {
-      if (mounted) {
-        setState(() => _loadingVehiculos = false);
-      }
+      if (mounted) setState(() => _loadingVehiculos = false);
     }
   }
 
-  Future<void> _getLocation() async {
-    bool enabled = await Geolocator.isLocationServiceEnabled();
+  Future<void> _checkLocationPermission() async {
+    final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) throw Exception('GPS desactivado');
+
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
+
+    if (permission == LocationPermission.deniedForever ||
+        permission == LocationPermission.denied) {
       throw Exception('Permiso de ubicación denegado');
     }
-    _position = await Geolocator.getCurrentPosition();
-    setState(() {});
+  }
+
+  Future<void> _startRealtimeLocation() async {
+    await _checkLocationPermission();
+
+    final current = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+      ),
+    );
+
+    setState(() {
+      _position = current;
+      _trackingGps = true;
+    });
+
+    await _gpsSubscription?.cancel();
+
+    _gpsSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+      ),
+    ).listen((position) {
+      if (!mounted) return;
+      setState(() => _position = position);
+    });
+  }
+
+  Future<void> _stopRealtimeLocation() async {
+    await _gpsSubscription?.cancel();
+    _gpsSubscription = null;
+    if (!mounted) return;
+    setState(() => _trackingGps = false);
   }
 
   Future<void> _pickImage() async {
-    final image = await _picker.pickImage(source: ImageSource.camera, imageQuality: 70);
-    if (image != null) {
-      setState(() => _image = image);
-    }
+    final image = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+    );
+    if (image != null) setState(() => _image = image);
   }
 
-  Future<void> _pickAudio() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'webm'],
-      withData: true,
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      final path = await _recorder.stop();
+
+      setState(() {
+        _isRecording = false;
+        if (path != null) {
+          _audio = XFile(path);
+        }
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Audio grabado correctamente')),
+      );
+      return;
+    }
+
+    final hasPermission = await _recorder.hasPermission();
+
+    if (!hasPermission) {
+      throw Exception('Permiso de micrófono denegado');
+    }
+
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/emergencia_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.aacLc,
+        bitRate: 128000,
+        sampleRate: 44100,
+      ),
+      path: path,
     );
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    XFile? audio;
-    if (file.bytes != null) {
-      audio = XFile.fromData(file.bytes!, name: file.name, mimeType: 'audio/*');
-    } else if (file.path != null && file.path!.isNotEmpty) {
-      audio = XFile(file.path!);
-    }
-    if (audio != null) {
-      setState(() => _audio = audio);
-    }
+
+    setState(() => _isRecording = true);
   }
 
   Future<void> _submit() async {
@@ -119,8 +182,12 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
     }
 
     setState(() => _loading = true);
+
     try {
-      _position ??= await Geolocator.getCurrentPosition();
+      if (_position == null) {
+        await _startRealtimeLocation();
+      }
+
       final incidenteId = await _api.reportEmergency(
         vehiculoId: _vehiculoIdSelected!,
         tipo: _tipoSelected,
@@ -137,18 +204,38 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
         lng: _position!.longitude,
       );
 
+      await _stopRealtimeLocation();
+
       if (!mounted) return;
-      Navigator.pushNamed(context, AppRoutes.emergenciaStatus, arguments: incidenteId);
+      Navigator.pushNamed(
+        context,
+        AppRoutes.emergenciaStatus,
+        arguments: incidenteId,
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
+  void dispose() {
+    _gpsSubscription?.cancel();
+    _descripcionCtrl.dispose();
+    _recorder.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final gpsText = _position == null
+        ? 'Sin ubicación todavía'
+        : '${_position!.latitude.toStringAsFixed(5)}, ${_position!.longitude.toStringAsFixed(5)}';
+
     return Scaffold(
       appBar: AppBar(title: const Text('Reportar emergencia')),
       body: ListView(
@@ -163,7 +250,10 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                     children: [
                       Icon(Icons.emergency_share, color: AppColors.accent),
                       SizedBox(width: 8),
-                      Text('Datos de la emergencia', style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Datos de la emergencia',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -178,10 +268,18 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                       children: [
                         Text(
                           'No se pudieron cargar tus vehículos',
-                          style: TextStyle(color: Theme.of(context).colorScheme.error),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        Text(_vehiculosError, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                        Text(
+                          _vehiculosError,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextButton.icon(
                           onPressed: _loadVehicles,
@@ -197,7 +295,10 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                         const Text('Aún no tienes vehículos registrados'),
                         const SizedBox(height: 6),
                         TextButton.icon(
-                          onPressed: () => Navigator.pushNamed(context, AppRoutes.vehiculoRegister),
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.vehiculoRegister,
+                          ),
                           icon: const Icon(Icons.directions_car),
                           label: const Text('Registrar vehículo'),
                         ),
@@ -207,9 +308,11 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                     Column(
                       children: [
                         DropdownButtonFormField<String>(
-                          value: _vehiculoIdSelected,
+                          initialValue: _vehiculoIdSelected,
                           isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Vehículo (placa)'),
+                          decoration: const InputDecoration(
+                            labelText: 'Vehículo (placa)',
+                          ),
                           items: _vehiculos
                               .map(
                                 (v) => DropdownMenuItem<String>(
@@ -218,12 +321,15 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                                 ),
                               )
                               .toList(),
-                          onChanged: (value) => setState(() => _vehiculoIdSelected = value),
+                          onChanged: (value) =>
+                              setState(() => _vehiculoIdSelected = value),
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
-                          value: _tipoSelected,
-                          decoration: const InputDecoration(labelText: 'Tipo de incidente'),
+                          initialValue: _tipoSelected,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo de incidente',
+                          ),
                           items: _tiposIncidente
                               .map(
                                 (tipo) => DropdownMenuItem<String>(
@@ -245,17 +351,74 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          TextField(controller: _descripcionCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Descripción')),
+          TextField(
+            controller: _descripcionCtrl,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Descripción del problema',
+            ),
+          ),
           const SizedBox(height: 10),
-          OutlinedButton(onPressed: _getLocation, child: const Text('Obtener ubicación GPS')),
-          if (_position != null)
-            Text('Ubicación: ${_position!.latitude.toStringAsFixed(5)}, ${_position!.longitude.toStringAsFixed(5)}'),
+          OutlinedButton.icon(
+            onPressed: _loading
+                ? null
+                : () async {
+                    try {
+                      if (_trackingGps) {
+                        await _stopRealtimeLocation();
+                      } else {
+                        await _startRealtimeLocation();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ubicación en tiempo real activada'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$e')),
+                      );
+                    }
+                  },
+            icon: Icon(_trackingGps ? Icons.gps_fixed : Icons.gps_not_fixed),
+            label: Text(
+              _trackingGps
+                  ? 'Detener ubicación en tiempo real'
+                  : 'Enviar ubicación en tiempo real',
+            ),
+          ),
+          Text('Ubicación actual: $gpsText'),
           const SizedBox(height: 10),
-          OutlinedButton(onPressed: _pickImage, child: const Text('Tomar/Cargar imagen')),
-          if (_image != null) Text('Imagen seleccionada: ${_image!.name}'),
+          OutlinedButton.icon(
+            onPressed: _loading ? null : _pickImage,
+            icon: const Icon(Icons.photo_camera),
+            label: const Text('Adjuntar foto del vehículo'),
+          ),
+          if (_image != null) Text('Foto seleccionada: ${_image!.name}'),
           const SizedBox(height: 10),
-          OutlinedButton(onPressed: _pickAudio, child: const Text('Cargar audio')),
-          if (_audio != null) Text('Audio seleccionado: ${_audio!.name}'),
+          OutlinedButton.icon(
+            onPressed: _loading
+                ? null
+                : () async {
+                    try {
+                      await _toggleRecording();
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$e')),
+                      );
+                    }
+                  },
+            icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+            label: Text(
+              _isRecording
+                  ? 'Detener grabación'
+                  : 'Grabar audio describiendo el problema',
+            ),
+          ),
+          if (_audio != null) const Text('Audio grabado listo para enviar'),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loading ? null : _submit,

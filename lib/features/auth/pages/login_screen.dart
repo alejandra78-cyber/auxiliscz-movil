@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../routes/app_routes.dart';
 import '../services/auth_api.dart';
 import '../../../shared/theme/app_theme.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,7 +21,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     setState(() => _loading = true);
     try {
-      await _api.login(email: _emailCtrl.text.trim(), password: _passwordCtrl.text.trim());
+      await _api.login(
+          email: _emailCtrl.text.trim(), password: _passwordCtrl.text.trim());
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } catch (e) {
@@ -50,9 +52,14 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('AuxilioSCZ', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                  const Text('AuxilioSCZ',
+                      style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary)),
                   const SizedBox(height: 6),
-                  const Text('Inicia sesión para continuar', style: TextStyle(color: AppColors.textMuted)),
+                  const Text('Inicia sesión para continuar',
+                      style: TextStyle(color: AppColors.textMuted)),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _emailCtrl,
@@ -90,12 +97,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
-                    child: const Text('Crear cuenta', style: TextStyle(color: AppColors.primary)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const RegisterScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'Crear cuenta',
+                      style: TextStyle(color: AppColors.primary),
+                    ),
                   ),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.recover),
-                    child: const Text('Recuperar contraseña', style: TextStyle(color: AppColors.primary)),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.recover),
+                    child: const Text('Recuperar contraseña',
+                        style: TextStyle(color: AppColors.primary)),
                   ),
                 ],
               ),

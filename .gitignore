@@ -52,4 +52,23 @@ flutter-app/.dart_tool/
 flutter-app/build/
 flutter-app/.idea/
 flutter-app/.pub-cache/
+
+# --- Custom Flutter (añadido) ---
+.build/
+.dart_tool/
+.packages
+pubspec.lock
+
+android/.gradle/
+android/.kotlin/
+android/app/build/
+
+ios/Pods/
+ios/.symlinks/
+
+linux/flutter/generated*
+macos/Flutter/Generated*
+windows/flutter/generated*
+
+.vscode/
 *.log

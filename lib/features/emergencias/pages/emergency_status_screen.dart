@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -89,7 +89,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
     try {
       final data = await _api.getEmergencyStatus(_incidenteId);
       final mensajes = await _api.getMessages(_incidenteId);
-      final notificaciones = await _api.getNotifications(incidenteId: _incidenteId);
+      final notificaciones =
+          await _api.getNotifications(incidenteId: _incidenteId);
       final estado = '${data['estado'] ?? ''}';
       Map<String, dynamic>? tecnico;
       if (estado == 'asignada' || estado == 'en_proceso') {
@@ -120,7 +121,9 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
         lng: pos.longitude,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ubicación enviada')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ubicación enviada')),
+      );
       await _refresh();
     } catch (e) {
       if (!mounted) return;
@@ -184,16 +187,15 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             DropdownButtonFormField<String>(
               value: _incidenteId,
               decoration: const InputDecoration(labelText: 'Solicitud'),
-              items: _solicitudes
-                  .map((s) {
-                    final id = '${s['incidente_id']}';
-                    final codigo = (s['codigo_solicitud'] ?? '').toString();
-                    final tipo = (s['tipo'] ?? 'incierto').toString();
-                    final st = (s['estado'] ?? '').toString();
-                    final label = '${codigo.isNotEmpty ? codigo : id.substring(0, 8)} · $tipo · $st';
-                    return DropdownMenuItem<String>(value: id, child: Text(label));
-                  })
-                  .toList(),
+              items: _solicitudes.map((s) {
+                final id = '${s['incidente_id']}';
+                final codigo = (s['codigo_solicitud'] ?? '').toString();
+                final tipo = (s['tipo'] ?? 'incierto').toString();
+                final st = (s['estado'] ?? '').toString();
+                final label =
+                    '${codigo.isNotEmpty ? codigo : id.substring(0, 8)} · $tipo · $st';
+                return DropdownMenuItem<String>(value: id, child: Text(label));
+              }).toList(),
               onChanged: (value) {
                 if (value == null || value.isEmpty) return;
                 setState(() {
@@ -216,8 +218,14 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
           const SizedBox(height: 8),
           Text('Taller asignado: ${_estado?['taller_nombre'] ?? '-'}'),
           const SizedBox(height: 8),
-          Text('Resumen IA: ${_estado?['resumen_ia'] ?? 'Sin resumen disponible'}'),
+          Text(
+              'Resumen IA: ${_estado?['resumen_ia'] ?? 'Sin resumen disponible'}'),
           const SizedBox(height: 12),
+          Text('Taller asignado: ${_estado?['taller_nombre'] ?? '-'}'),
+          const SizedBox(height: 8),
+          Text(
+            'Tiempo estimado de llegada: ${_estado?['tiempo_estimado_min'] ?? '-'} min',
+          ),
           ElevatedButton(
             onPressed: _sendGpsAgain,
             child: const Text('Enviar ubicación GPS nuevamente'),
@@ -231,8 +239,10 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             const SizedBox(height: 8),
             Text('Técnico: ${_tecnicoUbicacion!['tecnico_nombre'] ?? '-'}'),
             Text('Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
-            Text('Ubicación: ${_tecnicoUbicacion!['lat'] ?? '-'}, ${_tecnicoUbicacion!['lng'] ?? '-'}'),
-            if (_toDouble(_tecnicoUbicacion!['lat']) != null && _toDouble(_tecnicoUbicacion!['lng']) != null) ...[
+            Text(
+                'Ubicación: ${_tecnicoUbicacion!['lat'] ?? '-'}, ${_tecnicoUbicacion!['lng'] ?? '-'}'),
+            if (_toDouble(_tecnicoUbicacion!['lat']) != null &&
+                _toDouble(_tecnicoUbicacion!['lng']) != null) ...[
               const SizedBox(height: 8),
               SizedBox(
                 height: 230,
@@ -246,7 +256,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.auxilioscz.app',
                     ),
                     MarkerLayer(
@@ -258,7 +269,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
                             _toDouble(_tecnicoUbicacion!['lat'])!,
                             _toDouble(_tecnicoUbicacion!['lng'])!,
                           ),
-                          child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                          child: const Icon(Icons.location_pin,
+                              color: Colors.red, size: 40),
                         ),
                       ],
                     ),
@@ -268,7 +280,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             ],
           ],
           const SizedBox(height: 18),
-          const Text('Comunicación', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('Comunicación',
+              style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -280,7 +293,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Chat de la solicitud', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text('Chat de la solicitud',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 if (_mensajes.isEmpty)
                   const Padding(
@@ -289,19 +303,27 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
                   ),
                 if (_mensajes.isNotEmpty)
                   ..._mensajes.map((m) {
-                    final role = ((m['autor_rol'] ?? '').toString()).toLowerCase();
+                    final role =
+                        ((m['autor_rol'] ?? '').toString()).toLowerCase();
                     final outgoing = role == 'conductor' || role == 'cliente';
                     return Align(
-                      alignment: outgoing ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: outgoing
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
                         constraints: const BoxConstraints(maxWidth: 320),
                         decoration: BoxDecoration(
-                          color: outgoing ? const Color(0xFF1F3A7A) : const Color(0xFFEAF0FF),
+                          color: outgoing
+                              ? const Color(0xFF1F3A7A)
+                              : const Color(0xFFEAF0FF),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: outgoing ? const Color(0xFF1F3A7A) : const Color(0xFFD8E3FF),
+                            color: outgoing
+                                ? const Color(0xFF1F3A7A)
+                                : const Color(0xFFD8E3FF),
                           ),
                         ),
                         child: Column(
@@ -311,13 +333,18 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
                               '${m['autor_rol'] ?? ''} · ${m['creado_en'] ?? ''}',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: outgoing ? const Color(0xFFDCE6FF) : const Color(0xFF667085),
+                                color: outgoing
+                                    ? const Color(0xFFDCE6FF)
+                                    : const Color(0xFF667085),
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               (m['texto'] ?? '').toString(),
-                              style: TextStyle(color: outgoing ? Colors.white : const Color(0xFF101828)),
+                              style: TextStyle(
+                                  color: outgoing
+                                      ? Colors.white
+                                      : const Color(0xFF101828)),
                             ),
                           ],
                         ),
@@ -348,9 +375,11 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Notificaciones', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('Notificaciones',
+              style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          if (_notificaciones.isEmpty) const Text('Sin notificaciones para esta solicitud'),
+          if (_notificaciones.isEmpty)
+            const Text('Sin notificaciones para esta solicitud'),
           if (_notificaciones.isNotEmpty)
             ..._notificaciones.map(
               (n) => Container(
@@ -364,13 +393,15 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text((n['titulo'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text((n['titulo'] ?? '').toString(),
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
                     Text((n['mensaje'] ?? '').toString()),
                     const SizedBox(height: 4),
                     Text(
                       '${n['tipo'] ?? ''} · ${n['estado'] ?? ''} · ${n['creada_en'] ?? ''}',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF667085)),
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF667085)),
                     ),
                   ],
                 ),
