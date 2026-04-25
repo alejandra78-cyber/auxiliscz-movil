@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../routes/app_routes.dart';
+import '../../../shared/widgets/section_card.dart';
 import '../services/auth_api.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -112,66 +113,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextFormField(
-                controller: _nombreCtrl,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-                validator: (v) => _requiredText(v, 'El nombre'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _apellidoCtrl,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Apellido'),
-                validator: (v) => _requiredText(v, 'El apellido'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                decoration: const InputDecoration(labelText: 'Correo electrónico'),
-                validator: _emailValidator,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _telefonoCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Teléfono'),
-                validator: _phoneValidator,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passwordCtrl,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Contraseña',
-                  suffixIcon: IconButton(
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                  ),
-                ),
-                validator: _passwordValidator,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _confirmPasswordCtrl,
-                obscureText: _obscureConfirmPassword,
-                decoration: InputDecoration(
-                  labelText: 'Confirmar contraseña',
-                  suffixIcon: IconButton(
-                    onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                    icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                  ),
-                ),
-                validator: _confirmPasswordValidator,
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _submit,
-                  child: Text(_loading ? 'Registrando...' : 'Crear cuenta'),
+              SectionCard(
+                title: 'CU01 · Registrarse',
+                subtitle: 'Completa tus datos para crear cuenta de cliente.',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _nombreCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(labelText: 'Nombre'),
+                      validator: (v) => _requiredText(v, 'El nombre'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _apellidoCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(labelText: 'Apellido'),
+                      validator: (v) => _requiredText(v, 'El apellido'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      decoration: const InputDecoration(labelText: 'Correo electrónico'),
+                      validator: _emailValidator,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _telefonoCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(labelText: 'Teléfono'),
+                      validator: _phoneValidator,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passwordCtrl,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        ),
+                      ),
+                      validator: _passwordValidator,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _confirmPasswordCtrl,
+                      obscureText: _obscureConfirmPassword,
+                      decoration: InputDecoration(
+                        labelText: 'Confirmar contraseña',
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                          icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                        ),
+                      ),
+                      validator: _confirmPasswordValidator,
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _loading ? null : _submit,
+                        child: Text(_loading ? 'Registrando...' : 'Crear cuenta'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 10),

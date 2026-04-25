@@ -6,6 +6,7 @@ import '../../auth/services/auth_api.dart';
 import '../../emergencias/services/emergencias_api.dart';
 import '../../../routes/app_routes.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../../shared/widgets/section_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -95,17 +96,13 @@ class _HomeScreenState extends State<HomeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Plataforma de emergencias vehiculares', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 6),
-                  Text('Rol actual: ${_role.isEmpty ? 'sin definir' : _role}', style: const TextStyle(color: AppColors.textMuted)),
-                ],
-              ),
+          SectionCard(
+            title: 'Panel del Cliente',
+            subtitle: 'Plataforma de emergencias vehiculares',
+            icon: Icons.dashboard_customize_outlined,
+            child: Text(
+              'Rol actual: ${_role.isEmpty ? 'sin definir' : _role}',
+              style: const TextStyle(color: AppColors.textMuted),
             ),
           ),
           const SizedBox(height: 12),

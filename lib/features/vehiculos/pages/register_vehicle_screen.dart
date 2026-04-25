@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/theme/app_theme.dart';
+import '../../../shared/widgets/section_card.dart';
+import '../../../shared/widgets/status_chip.dart';
 import '../services/vehiculos_api.dart';
 
 class RegisterVehicleScreen extends StatefulWidget {
@@ -199,82 +202,78 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
           children: [
             Form(
               key: _formKey,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _editing ? 'Editar vehículo' : 'Registrar vehículo',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+              child: SectionCard(
+                title: _editing ? 'CU10 · Editar vehículo' : 'CU10 · Registrar vehículo',
+                subtitle: 'Gestiona los vehículos vinculados a tu cuenta.',
+                icon: Icons.directions_car_filled_outlined,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (_editing)
+                          TextButton(
+                            onPressed: _saving ? null : () => setState(_clearForm),
+                            child: const Text('Cancelar edición'),
                           ),
-                          if (_editing)
-                            TextButton(
-                              onPressed: _saving ? null : () => setState(_clearForm),
-                              child: const Text('Cancelar edición'),
-                            ),
-                        ],
+                      ],
+                    ),
+                    TextFormField(
+                      controller: _placaCtrl,
+                      decoration: const InputDecoration(labelText: 'Placa'),
+                      textCapitalization: TextCapitalization.characters,
+                      validator: _placaValidator,
+                      enabled: !_editing,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _marcaCtrl,
+                      decoration: const InputDecoration(labelText: 'Marca'),
+                      validator: (v) => _requiredValidator(v, 'La marca'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _modeloCtrl,
+                      decoration: const InputDecoration(labelText: 'Modelo'),
+                      validator: (v) => _requiredValidator(v, 'El modelo'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _anioCtrl,
+                      decoration: const InputDecoration(labelText: 'Año'),
+                      keyboardType: TextInputType.number,
+                      validator: _anioValidator,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _colorCtrl,
+                      decoration: const InputDecoration(labelText: 'Color (opcional)'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _tipoCtrl,
+                      decoration: const InputDecoration(labelText: 'Tipo de vehículo (opcional)'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _observacionCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(labelText: 'Observación (opcional)'),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _submit,
+                        child: Text(_saving ? 'Guardando...' : (_editing ? 'Actualizar vehículo' : 'Registrar vehículo')),
                       ),
-                      TextFormField(
-                        controller: _placaCtrl,
-                        decoration: const InputDecoration(labelText: 'Placa'),
-                        textCapitalization: TextCapitalization.characters,
-                        validator: _placaValidator,
-                        enabled: !_editing,
-                      ),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: _marcaCtrl,
-                        decoration: const InputDecoration(labelText: 'Marca'),
-                        validator: (v) => _requiredValidator(v, 'La marca'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: _modeloCtrl,
-                        decoration: const InputDecoration(labelText: 'Modelo'),
-                        validator: (v) => _requiredValidator(v, 'El modelo'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: _anioCtrl,
-                        decoration: const InputDecoration(labelText: 'Año'),
-                        keyboardType: TextInputType.number,
-                        validator: _anioValidator,
-                      ),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: _colorCtrl,
-                        decoration: const InputDecoration(labelText: 'Color (opcional)'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: _tipoCtrl,
-                        decoration: const InputDecoration(labelText: 'Tipo de vehículo (opcional)'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: _observacionCtrl,
-                        maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'Observación (opcional)'),
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _saving ? null : _submit,
-                          child: Text(_saving ? 'Guardando...' : (_editing ? 'Actualizar vehículo' : 'Registrar vehículo')),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            const Text('Vehículos registrados', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text('Vehículos registrados', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
             const SizedBox(height: 8),
             if (_loadingList)
               const Padding(
@@ -302,17 +301,10 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
                             Expanded(
                               child: Text(
                                 v.label,
-                                style: const TextStyle(fontWeight: FontWeight.w700),
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: v.activo ? Colors.green.shade50 : Colors.orange.shade50,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(v.activo ? 'Activo' : 'Inactivo'),
-                            ),
+                            StatusChip(status: v.activo ? 'activo' : 'inactivo'),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -330,7 +322,8 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
                                 child: const Text('Editar'),
                               ),
                             if (v.activo)
-                              OutlinedButton(
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
                                 onPressed: _saving ? null : () => _confirmDeactivate(v),
                                 child: const Text('Desactivar'),
                               ),

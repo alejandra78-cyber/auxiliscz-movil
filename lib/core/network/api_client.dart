@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ class ApiClient {
       : _tokenStorage = tokenStorage ?? TokenStorage();
 
   final TokenStorage _tokenStorage;
+  static const Duration _defaultTimeout = Duration(seconds: 15);
 
   Future<Map<String, String>> _headers({bool jsonContent = false}) async {
     final token = await _tokenStorage.readToken();
@@ -24,31 +26,53 @@ class ApiClient {
   Uri _uri(String path) => Uri.parse('${AppConfig.baseUrl}$path');
 
   Future<http.Response> get(String path) async {
-    return http.get(_uri(path), headers: await _headers());
+    try {
+      return await http.get(_uri(path), headers: await _headers()).timeout(_defaultTimeout);
+    } on TimeoutException {
+      throw Exception('Tiempo de espera agotado al conectar con el servidor.');
+    }
   }
 
   Future<http.Response> post(String path, {Map<String, dynamic>? body}) async {
-    return http.post(
-      _uri(path),
-      headers: await _headers(jsonContent: true),
-      body: body != null ? jsonEncode(body) : null,
-    );
+    try {
+      return await http
+          .post(
+            _uri(path),
+            headers: await _headers(jsonContent: true),
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(_defaultTimeout);
+    } on TimeoutException {
+      throw Exception('Tiempo de espera agotado al conectar con el servidor.');
+    }
   }
 
   Future<http.Response> patch(String path, {Map<String, dynamic>? body}) async {
-    return http.patch(
-      _uri(path),
-      headers: await _headers(jsonContent: true),
-      body: body != null ? jsonEncode(body) : null,
-    );
+    try {
+      return await http
+          .patch(
+            _uri(path),
+            headers: await _headers(jsonContent: true),
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(_defaultTimeout);
+    } on TimeoutException {
+      throw Exception('Tiempo de espera agotado al conectar con el servidor.');
+    }
   }
 
   Future<http.Response> put(String path, {Map<String, dynamic>? body}) async {
-    return http.put(
-      _uri(path),
-      headers: await _headers(jsonContent: true),
-      body: body != null ? jsonEncode(body) : null,
-    );
+    try {
+      return await http
+          .put(
+            _uri(path),
+            headers: await _headers(jsonContent: true),
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(_defaultTimeout);
+    } on TimeoutException {
+      throw Exception('Tiempo de espera agotado al conectar con el servidor.');
+    }
   }
 
   Future<http.StreamedResponse> multipart(

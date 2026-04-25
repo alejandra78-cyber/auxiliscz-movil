@@ -83,11 +83,17 @@ class EmergenciesApi {
   }
 
   Future<Map<String, dynamic>> getEmergencyStatus(String incidenteId) async {
-    final res = await _apiClient.get('/emergencias/solicitud/$incidenteId');
-    if (res.statusCode != 200) {
-      throw Exception('No se pudo consultar estado: ${res.body}');
+    final res = await _apiClient.get('/clientes/solicitudes/$incidenteId');
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
     }
-    return jsonDecode(res.body) as Map<String, dynamic>;
+
+    // Fallback de compatibilidad.
+    final legacy = await _apiClient.get('/emergencias/solicitud/$incidenteId');
+    if (legacy.statusCode != 200) {
+      throw Exception('No se pudo consultar estado: ${legacy.body}');
+    }
+    return jsonDecode(legacy.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> getLatestEmergencyStatus() async {
@@ -98,10 +104,23 @@ class EmergenciesApi {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
-  Future<void> cancelEmergency(String incidenteId) async {
-    final res = await _apiClient.patch('/emergencias/solicitud/$incidenteId/cancelar');
-    if (res.statusCode != 200) {
-      throw Exception('No se pudo cancelar la solicitud: ${res.body}');
+  Future<void> cancelEmergency(String incidenteId, {String? motivo}) async {
+    final res = await _apiClient.patch(
+      '/clientes/solicitudes/$incidenteId/cancelar',
+      body: {
+        if ((motivo ?? '').trim().isNotEmpty) 'motivo_cancelacion': motivo!.trim(),
+      },
+    );
+    if (res.statusCode == 200) return;
+
+    final legacy = await _apiClient.patch(
+      '/emergencias/solicitud/$incidenteId/cancelar',
+      body: {
+        if ((motivo ?? '').trim().isNotEmpty) 'motivo_cancelacion': motivo!.trim(),
+      },
+    );
+    if (legacy.statusCode != 200) {
+      throw Exception('No se pudo cancelar la solicitud: ${legacy.body}');
     }
   }
 
@@ -153,11 +172,19 @@ class EmergenciesApi {
   }
 
   Future<List<Map<String, dynamic>>> getTrackRequests() async {
-    final res = await _apiClient.get('/clientes/solicitudes/seguimiento');
-    if (res.statusCode != 200) {
-      throw Exception('No se pudo obtener solicitudes: ${res.body}');
+    final res = await _apiClient.get('/clientes/solicitudes');
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) return const [];
+      return decoded.whereType<Map<String, dynamic>>().toList();
     }
-    final decoded = jsonDecode(res.body);
+
+    // Fallback legacy.
+    final legacy = await _apiClient.get('/clientes/solicitudes/seguimiento');
+    if (legacy.statusCode != 200) {
+      throw Exception('No se pudo obtener solicitudes: ${legacy.body}');
+    }
+    final decoded = jsonDecode(legacy.body);
     if (decoded is! List) return const [];
     return decoded.whereType<Map<String, dynamic>>().toList();
   }

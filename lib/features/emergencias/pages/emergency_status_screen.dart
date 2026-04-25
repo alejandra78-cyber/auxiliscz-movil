@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../../../routes/app_routes.dart';
+import '../../../shared/theme/app_theme.dart';
+import '../../../shared/widgets/section_card.dart';
+import '../../../shared/widgets/status_chip.dart';
 import '../services/emergencias_api.dart';
 
 class EmergencyStatusScreen extends StatefulWidget {
@@ -24,77 +25,123 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
   Map<String, dynamic>? _estado;
   Map<String, dynamic>? _tecnicoUbicacion;
   List<Map<String, dynamic>> _solicitudes = const [];
-  List<Map<String, dynamic>> _mensajes = const [];
-  List<Map<String, dynamic>> _notificaciones = const [];
+  String _incidenteId = '';
+  String _error = '';
+  bool _refreshing = false;
+  bool _loadingSolicitudes = false;
+  bool _sending = false;
   Timer? _timer;
 
-  late String _incidenteId;
-  late DateTime _fechaReferencia;
-  bool _sending = false;
-  bool _loadingSolicitudes = true;
-  bool _refreshing = false;
-  bool _showMap = false;
-  String _error = '';
-  static const _finalStates = {'completada', 'completado', 'cancelada', 'rechazada', 'finalizado'};
   static const _cancelableStates = {
     'pendiente',
-    'en_revision',
-    'en_evaluacion',
-    'aceptada',
-    'asignada',
-    'tecnico_asignado',
+    'buscando_taller',
+    'pendiente_asignacion',
+    'asignado',
     'pendiente_respuesta',
+    'pendiente_respuesta_taller',
+    'aceptada',
+    'tecnico_asignado',
+    'en_camino',
   };
 
-  bool get _isCurrentFinalState => _finalStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
-
-  String _stateKey(String? value) => (value ?? '').trim().toLowerCase().replaceAll(' ', '_');
-
-  bool get _canCancelFromState {
-    final apiFlag = _estado?['es_cancelable'];
-    if (apiFlag is bool) return apiFlag;
-    return _cancelableStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
-  }
-
-  double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
-  }
+  static const _finalStates = {
+    'cancelada',
+    'cancelado',
+    'rechazada',
+    'completada',
+    'completado',
+    'finalizado',
+    'pagado',
+  };
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _incidenteId = widget.incidenteId.trim();
-    _fechaReferencia = DateTime.now();
-    _cargarSolicitudes();
-    if (_incidenteId.isNotEmpty) {
-      _refresh();
+    _bootstrap();
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
+  }
+
+  Future<void> _bootstrap() async {
+    await _cargarSolicitudes();
+    await _refresh();
+  }
+
+  String _stateKey(String? value) => (value ?? '').trim().toLowerCase().replaceAll(' ', '_');
+
+  bool get _isFinalState => _finalStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
+
+  bool get _canCancel {
+    final actions = _asMap(_estado?['acciones_disponibles']);
+    if (actions != null && actions['puede_cancelar'] is bool) {
+      return actions['puede_cancelar'] as bool;
     }
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (_incidenteId.isNotEmpty && !_isCurrentFinalState) {
-        _refresh();
-      }
-    });
+    return _cancelableStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
   }
 
-  String get _codigoReferencia {
-    final codeFromApi = _estado?['codigo_solicitud']?.toString();
-    if (codeFromApi != null && codeFromApi.isNotEmpty) return codeFromApi;
-    final id = _incidenteId;
-    if (id.length <= 8) return id.toUpperCase();
-    return id.substring(0, 8).toUpperCase();
+  bool get _canViewTechnician {
+    final actions = _asMap(_estado?['acciones_disponibles']);
+    if (actions != null && actions['puede_ver_tecnico'] is bool) {
+      return actions['puede_ver_tecnico'] as bool;
+    }
+    final state = _stateKey('${_estado?['estado'] ?? ''}');
+    return state == 'tecnico_asignado' || state == 'en_camino' || state == 'en_proceso';
   }
 
-  String get _fechaHoraTexto {
-    final d = _fechaReferencia;
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    final yyyy = d.year.toString();
-    final hh = d.hour.toString().padLeft(2, '0');
-    final min = d.minute.toString().padLeft(2, '0');
-    return '$dd/$mm/$yyyy $hh:$min';
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return value.map((k, v) => MapEntry(k.toString(), v));
+    return null;
+  }
+
+  List<Map<String, dynamic>> _asMapList(dynamic value) {
+    if (value is! List) return const [];
+    final out = <Map<String, dynamic>>[];
+    for (final item in value) {
+      final map = _asMap(item);
+      if (map != null) out.add(map);
+    }
+    return out;
+  }
+
+  String _shortId(String raw) {
+    final id = raw.trim();
+    if (id.isEmpty) return 'SIN-ID';
+    return id.length <= 8 ? id.toUpperCase() : id.substring(0, 8).toUpperCase();
+  }
+
+  String _formatFechaCorta(String? iso) {
+    if ((iso ?? '').trim().isEmpty) return 'Sin fecha';
+    final parsed = DateTime.tryParse(iso!);
+    if (parsed == null) return 'Sin fecha';
+    final now = DateTime.now();
+    final local = parsed.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    final isToday = local.year == now.year && local.month == now.month && local.day == now.day;
+    if (isToday) return 'Hoy $hh:$mm';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hh:$mm';
+  }
+
+  String _labelSolicitudCorto(Map<String, dynamic> s) {
+    final tipo = (s['tipo_cliente'] ?? s['tipo_reportado'] ?? s['tipo'] ?? s['tipo_problema'] ?? 'incidente').toString();
+    final fecha = _formatFechaCorta(s['fecha_reporte']?.toString());
+    final vehiculo = _asMap(s['vehiculo']);
+    final placa = (vehiculo?['placa'] ?? '').toString();
+    final vehiculoTxt = placa.isNotEmpty ? placa : 'Vehículo';
+    return '$fecha · $vehiculoTxt · $tipo';
+  }
+
+  String _tipoClientePreferido() {
+    final current = _solicitudes.where((e) => '${e['incidente_id']}' == _incidenteId);
+    if (current.isNotEmpty) {
+      final s = current.first;
+      final fromCliente = (s['tipo_cliente'] ?? s['tipo_reportado'] ?? s['tipo']).toString().trim();
+      if (fromCliente.isNotEmpty) return fromCliente;
+    }
+    final fallback = (_estado?['tipo'] ?? _estado?['tipo_problema'] ?? '-').toString().trim();
+    return fallback.isEmpty ? '-' : fallback;
   }
 
   Future<void> _cargarSolicitudes() async {
@@ -105,19 +152,13 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
       setState(() {
         _solicitudes = rows;
         _error = '';
-        final exists = rows.any((e) => '${e['incidente_id']}' == _incidenteId);
-        if ((!exists || _incidenteId.isEmpty) && rows.isNotEmpty) {
+        if (_incidenteId.isEmpty && rows.isNotEmpty) {
           _incidenteId = '${rows.first['incidente_id']}';
         }
       });
-      if (_incidenteId.isNotEmpty) {
-        await _refresh();
-      }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = 'No se pudieron cargar las solicitudes. Verifica sesión y backend.';
-      });
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loadingSolicitudes = false);
     }
@@ -127,117 +168,64 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
     if (_refreshing || _incidenteId.isEmpty) return;
     _refreshing = true;
     try {
-      final results = await Future.wait([
-        _api.getEmergencyStatus(_incidenteId),
-        _api.getMessages(_incidenteId),
-        _api.getNotifications(incidenteId: _incidenteId),
-      ]);
-      final data = results[0] as Map<String, dynamic>;
-      final mensajes = results[1] as List<Map<String, dynamic>>;
-      final notificaciones = results[2] as List<Map<String, dynamic>>;
-      final estado = '${data['estado'] ?? ''}';
-      Map<String, dynamic>? tecnico;
-      if (estado == 'asignada' || estado == 'en_proceso') {
-        try {
-          tecnico = await _api.getTechnicianLocation(_incidenteId);
-        } catch (_) {
-          tecnico = _tecnicoUbicacion;
-        }
-      } else {
-        tecnico = null;
-      }
+      final data = await _api.getEmergencyStatus(_incidenteId);
       if (!mounted) return;
       setState(() {
         _estado = data;
-        _mensajes = mensajes;
-        _notificaciones = notificaciones;
-        _tecnicoUbicacion = tecnico;
         _error = '';
       });
-      if (_isCurrentFinalState) {
+
+      if (_canViewTechnician) {
+        try {
+          final tech = await _api.getTechnicianLocation(_incidenteId);
+          if (!mounted) return;
+          setState(() => _tecnicoUbicacion = tech);
+        } catch (_) {}
+      } else {
+        if (!mounted) return;
+        setState(() => _tecnicoUbicacion = null);
+      }
+
+      if (_isFinalState) {
         _timer?.cancel();
         _timer = null;
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = 'No se pudo cargar el estado de la solicitud: $e';
-      });
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       _refreshing = false;
     }
   }
 
-  Future<void> _sendGpsAgain() async {
-    try {
-      final pos = await Geolocator.getCurrentPosition();
-      await _api.sendGps(
-        incidenteId: _incidenteId,
-        lat: pos.latitude,
-        lng: pos.longitude,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ubicación enviada')));
-      await _refresh();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  Future<void> _verUbicacionTecnico() async {
-    try {
-      final data = await _api.getTechnicianLocation(_incidenteId);
-      if (!mounted) return;
-      setState(() => _tecnicoUbicacion = data);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${data['mensaje'] ?? 'Ubicación procesada'}')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  Future<void> _enviarMensaje() async {
-    final texto = _msgCtrl.text.trim();
-    if (texto.isEmpty) return;
-    setState(() => _sending = true);
-    try {
-      await _api.sendMessage(_incidenteId, texto);
-      _msgCtrl.clear();
-      await _refresh();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
   Future<void> _cancelarSolicitud() async {
-    final estado = '${_estado?['estado'] ?? ''}';
-    if (!_canCancelFromState) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se puede cancelar en estado: $estado')),
-      );
-      return;
-    }
-    final confirm = await showDialog<bool>(
+    if (!_canCancel) return;
+    final motivoCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancelar solicitud'),
-        content: const Text('¿Seguro que deseas cancelar esta solicitud?'),
+        content: TextField(
+          controller: motivoCtrl,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: 'Motivo (opcional)',
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sí, cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar'),
+          ),
         ],
       ),
     );
-    if (confirm != true) return;
+    if (ok != true) return;
 
     try {
-      await _api.cancelEmergency(_incidenteId);
+      await _api.cancelEmergency(_incidenteId, motivo: motivoCtrl.text.trim());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Solicitud cancelada correctamente')),
@@ -246,7 +234,65 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
       await _cargarSolicitudes();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _sendGpsAgain() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
+      );
+      await _api.sendGps(
+        incidenteId: _incidenteId,
+        lat: pos.latitude,
+        lng: pos.longitude,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ubicación enviada correctamente')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final txt = _msgCtrl.text.trim();
+    if (txt.isEmpty || _incidenteId.isEmpty) return;
+    setState(() => _sending = true);
+    try {
+      await _api.sendMessage(_incidenteId, txt);
+      if (!mounted) return;
+      _msgCtrl.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mensaje enviado')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.detached) {
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _timer == null) {
+      _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
     }
   }
 
@@ -259,31 +305,21 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.detached) {
-      _timer?.cancel();
-      _timer = null;
-      return;
-    }
-    if (state == AppLifecycleState.resumed && _timer == null) {
-      _timer = Timer.periodic(const Duration(seconds: 10), (_) {
-        if (_incidenteId.isNotEmpty && !_isCurrentFinalState) {
-          _refresh();
-        }
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final estado = '${_estado?['estado'] ?? 'consultando...'}';
-    final puedeVerTecnico = estado == 'asignada' || estado == 'en_proceso';
+    final estado = '${_estado?['estado'] ?? 'sin_datos'}';
+    final historial = _asMapList(_estado?['historial']);
+    final taller = _asMap(_estado?['taller_asignado']);
+    final tecnico = _asMap(_estado?['tecnico_asignado']);
+    final cotizacion = _asMap(_estado?['cotizacion_actual']);
+    final pago = _asMap(_estado?['pago_actual']);
+    final ubicacion = _asMap(_estado?['ubicacion']);
+
     final selectedExists = _solicitudes.any((s) => '${s['incidente_id']}' == _incidenteId);
     final selectedValue = selectedExists ? _incidenteId : null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Consultar Estado de solicitud'),
+        title: const Text('CU13 · Estado de solicitud'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () async {
@@ -291,289 +327,196 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
               Navigator.pop(context);
               return;
             }
-            await Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
+            await Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
           },
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _solicitudes.isEmpty
-                      ? 'Solicitudes disponibles: 0'
-                      : 'Solicitudes disponibles: ${_solicitudes.length}',
-                  style: const TextStyle(color: Color(0xFF667085)),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: _loadingSolicitudes ? null : _cargarSolicitudes,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Recargar'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          if (_loadingSolicitudes)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: LinearProgressIndicator(minHeight: 3),
-            ),
-          if (_solicitudes.isNotEmpty)
-            DropdownButtonFormField<String>(
-              value: selectedValue,
-              decoration: const InputDecoration(labelText: 'Solicitud'),
-              items: _solicitudes
-                  .map((s) {
-                    final id = '${s['incidente_id']}';
-                    final codigo = (s['codigo_solicitud'] ?? '').toString();
-                    final tipo = (s['tipo'] ?? 'incierto').toString();
-                    final st = (s['estado'] ?? '').toString();
-                    final label = '${codigo.isNotEmpty ? codigo : id.substring(0, 8)} · $tipo · $st';
-                    return DropdownMenuItem<String>(value: id, child: Text(label));
-                  })
-                  .toList(),
-              onChanged: (value) {
-                if (value == null || value.isEmpty) return;
-                setState(() {
-                  _incidenteId = value;
-                  _tecnicoUbicacion = null;
-                  _showMap = false;
-                });
-                _refresh();
-              },
-            ),
-          if (_solicitudes.isEmpty && !_loadingSolicitudes)
-            const Text('No hay solicitudes disponibles para mostrar.'),
-          if (_error.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(_error, style: const TextStyle(color: Colors.red)),
-          ],
-          const SizedBox(height: 12),
-          Text('Referencia: $_codigoReferencia'),
-          const SizedBox(height: 8),
-          Text('Fecha y hora: $_fechaHoraTexto'),
-          const SizedBox(height: 8),
-          Text('Estado: $estado'),
-          const SizedBox(height: 8),
-          if (_canCancelFromState)
-            ElevatedButton.icon(
-              onPressed: _cancelarSolicitud,
-              icon: const Icon(Icons.cancel_outlined),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB42318)),
-              label: const Text('Cancelar solicitud'),
-            )
-          else
-            OutlinedButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.block),
-              label: const Text('Solicitud no cancelable en este estado'),
-            ),
-          if (_isCurrentFinalState) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF4ED),
-                border: Border.all(color: const Color(0xFFFFD6AE)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Esta solicitud ya finalizó. Para continuar, reporta una nueva emergencia.',
-                style: TextStyle(color: Color(0xFF9A3412)),
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text('Tipo: ${_estado?['tipo'] ?? '-'}'),
-          const SizedBox(height: 8),
-          Text('Prioridad: ${_estado?['prioridad'] ?? '-'}'),
-          const SizedBox(height: 8),
-          Text('Taller asignado: ${_estado?['taller_nombre'] ?? '-'}'),
-          const SizedBox(height: 8),
-          Text('Resumen IA: ${_estado?['resumen_ia'] ?? 'Sin resumen disponible'}'),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: _sendGpsAgain,
-            child: const Text('Enviar ubicación GPS nuevamente'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.emergenciaReport),
-            icon: const Icon(Icons.add_alert),
-            label: const Text('Reportar nueva emergencia'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false),
-            icon: const Icon(Icons.home),
-            label: const Text('Volver al inicio'),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: puedeVerTecnico ? _verUbicacionTecnico : null,
-            child: const Text('Ver ubicación del técnico'),
-          ),
-          if (_tecnicoUbicacion != null) ...[
-            const SizedBox(height: 8),
-            Text('Técnico: ${_tecnicoUbicacion!['tecnico_nombre'] ?? '-'}'),
-            Text('Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
-            Text('Ubicación: ${_tecnicoUbicacion!['lat'] ?? '-'}, ${_tecnicoUbicacion!['lng'] ?? '-'}'),
-            if (_toDouble(_tecnicoUbicacion!['lat']) != null && _toDouble(_tecnicoUbicacion!['lng']) != null) ...[
-              const SizedBox(height: 6),
-              OutlinedButton(
-                onPressed: () => setState(() => _showMap = !_showMap),
-                child: Text(_showMap ? 'Ocultar mapa' : 'Mostrar mapa'),
-              ),
-            ],
-            if (_toDouble(_tecnicoUbicacion!['lat']) != null && _toDouble(_tecnicoUbicacion!['lng']) != null) ...[
-              if (_showMap) ...[
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 230,
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCenter: LatLng(
-                        _toDouble(_tecnicoUbicacion!['lat'])!,
-                        _toDouble(_tecnicoUbicacion!['lng'])!,
-                      ),
-                      initialZoom: 15,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.auxilioscz.app',
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            width: 44,
-                            height: 44,
-                            point: LatLng(
-                              _toDouble(_tecnicoUbicacion!['lat'])!,
-                              _toDouble(_tecnicoUbicacion!['lng'])!,
-                            ),
-                            child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ],
-          const SizedBox(height: 18),
-          const Text('Comunicación', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: const Color(0xFFE8EDF8)),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            padding: const EdgeInsets.all(10),
+          SectionCard(
+            title: 'Solicitudes',
+            subtitle: 'Selecciona una solicitud para ver su estado.',
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Chat de la solicitud', style: TextStyle(fontWeight: FontWeight.w600)),
+                if (_loadingSolicitudes) const LinearProgressIndicator(minHeight: 3),
                 const SizedBox(height: 8),
-                if (_mensajes.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('Aún no hay mensajes para esta solicitud'),
-                  ),
-                if (_mensajes.isNotEmpty)
-                  ..._mensajes.map((m) {
-                    final role = ((m['autor_rol'] ?? '').toString()).toLowerCase();
-                    final outgoing = role == 'conductor' || role == 'cliente';
-                    return Align(
-                      alignment: outgoing ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        decoration: BoxDecoration(
-                          color: outgoing ? const Color(0xFF1F3A7A) : const Color(0xFFEAF0FF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: outgoing ? const Color(0xFF1F3A7A) : const Color(0xFFD8E3FF),
+                if (_solicitudes.isNotEmpty)
+                  DropdownButtonFormField<String>(
+                    value: selectedValue,
+                    decoration: const InputDecoration(labelText: 'Solicitud'),
+                    items: _solicitudes.map((s) {
+                      final id = '${s['incidente_id']}';
+                      final label = _labelSolicitudCorto(s);
+                      return DropdownMenuItem<String>(
+                        value: id,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value == null || value.isEmpty) return;
+                      setState(() => _incidenteId = value);
+                      _refresh();
+                    },
+                  )
+                else
+                  const Text('No hay solicitudes disponibles.'),
+                const SizedBox(height: 8),
+                if (selectedValue != null)
+                  Builder(
+                    builder: (_) {
+                      final current = _solicitudes.firstWhere(
+                        (e) => '${e['incidente_id']}' == selectedValue,
+                        orElse: () => const {},
+                      );
+                      if (current.isEmpty) return const SizedBox.shrink();
+                      final estado = (current['estado'] ?? '').toString();
+                      return Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Solicitud seleccionada',
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${m['autor_rol'] ?? ''} · ${m['creado_en'] ?? ''}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: outgoing ? const Color(0xFFDCE6FF) : const Color(0xFF667085),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              (m['texto'] ?? '').toString(),
-                              style: TextStyle(color: outgoing ? Colors.white : const Color(0xFF101828)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
+                          StatusChip(status: estado),
+                        ],
+                      );
+                    },
+                  ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _msgCtrl,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Mensaje para el taller',
-                          isDense: true,
-                        ),
+                      child: OutlinedButton.icon(
+                        onPressed: _refreshing ? null : _cargarSolicitudes,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Recargar'),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _sending ? null : _enviarMensaje,
-                      child: Text(_sending ? 'Enviando...' : 'Enviar'),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          const Text('Notificaciones', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          if (_notificaciones.isEmpty) const Text('Sin notificaciones para esta solicitud'),
-          if (_notificaciones.isNotEmpty)
-            ..._notificaciones.map(
-              (n) => Container(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: const Color(0xFFE8EDF8)),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          if (_refreshing && _estado == null) ...[
+            const SizedBox(height: 12),
+            const Center(child: CircularProgressIndicator()),
+          ],
+          if (_error.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(_error, style: const TextStyle(color: AppColors.danger)),
+          ],
+          const SizedBox(height: 12),
+          SectionCard(
+            title: 'Estado actual',
+            subtitle: 'CU12 disponible según estado de la solicitud.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text((n['titulo'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text((n['mensaje'] ?? '').toString()),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${n['tipo'] ?? ''} · ${n['estado'] ?? ''} · ${n['creada_en'] ?? ''}',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF667085)),
-                    ),
+                    const Text('Estado: '),
+                    StatusChip(status: estado),
                   ],
                 ),
+                const SizedBox(height: 8),
+                Text('Tipo: ${_tipoClientePreferido()}'),
+                Text('Prioridad: ${_estado?['prioridad'] ?? '-'}'),
+                Text('Resumen IA: ${_estado?['resumen_ia'] ?? '-'}'),
+                Text('Taller: ${_estado?['taller_nombre'] ?? taller?['nombre'] ?? '-'}'),
+                Text('Técnico: ${_estado?['tecnico_nombre'] ?? tecnico?['nombre'] ?? '-'}'),
+                if (ubicacion != null)
+                  Text('Ubicación enviada: ${ubicacion['latitud'] ?? '-'}, ${ubicacion['longitud'] ?? '-'}'),
+                if (cotizacion != null)
+                  Text('Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
+                if (pago != null)
+                  Text('Pago: ${pago['estado'] ?? '-'}'),
+                const SizedBox(height: 10),
+                if (_canCancel)
+                  ElevatedButton.icon(
+                    onPressed: _cancelarSolicitud,
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+                    icon: const Icon(Icons.cancel),
+                    label: const Text('CU12 · Cancelar solicitud'),
+                  )
+                else
+                  const Text(
+                    'No se puede cancelar en este estado.',
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+              ],
+            ),
+          ),
+          if (historial.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'Línea de tiempo',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: historial
+                    .map(
+                      (h) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Text(
+                          '• ${h['estado_nuevo'] ?? '-'}'
+                          '${(h['creado_en'] ?? '').toString().isNotEmpty ? ' (${h['creado_en']})' : ''}',
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
+          ],
+          if (_tecnicoUbicacion != null) ...[
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'CU19 · Ubicación del técnico',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Técnico: ${_tecnicoUbicacion!['tecnico_nombre'] ?? '-'}'),
+                  Text('Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
+                  Text('Lat: ${_tecnicoUbicacion!['lat'] ?? '-'}'),
+                  Text('Lng: ${_tecnicoUbicacion!['lng'] ?? '-'}'),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SectionCard(
+            title: 'Acciones rápidas',
+            child: Column(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _sendGpsAgain,
+                  icon: const Icon(Icons.my_location),
+                  label: const Text('Enviar ubicación nuevamente'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _msgCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Mensaje para el taller'),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: _sending ? null : _sendMessage,
+                  child: Text(_sending ? 'Enviando...' : 'Enviar mensaje'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.emergenciaReport),
+                  icon: const Icon(Icons.add_alert),
+                  label: const Text('Reportar nueva emergencia'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../routes/app_routes.dart';
+import '../../../shared/widgets/section_card.dart';
 import '../services/auth_api.dart';
 
 class RecoverPasswordScreen extends StatefulWidget {
@@ -145,30 +146,29 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text(
-              'Solicita el enlace desde tu correo y luego establece una nueva contraseña.',
-              style: TextStyle(color: Color(0xFF6D7890)),
-            ),
-            const SizedBox(height: 16),
-            Form(
-              key: _requestFormKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Correo electrónico'),
-                    validator: _emailValidator,
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _loadingRequest ? null : _request,
-                      child: Text(_loadingRequest ? 'Enviando...' : 'Enviar enlace de recuperación'),
+            SectionCard(
+              title: 'CU05 · Recuperar contraseña',
+              subtitle: 'Ingresa tu correo y te enviaremos un enlace seguro.',
+              child: Form(
+                key: _requestFormKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(labelText: 'Correo electrónico'),
+                      validator: _emailValidator,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _loadingRequest ? null : _request,
+                        child: Text(_loadingRequest ? 'Enviando...' : 'Enviar enlace de recuperación'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -181,53 +181,57 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
             ),
             if (_showResetForm) ...[
               const SizedBox(height: 10),
-              Form(
-                key: _resetFormKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _tokenCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Token o enlace completo',
-                        helperText: 'Puedes pegar el token o todo el enlace recibido por correo',
+              SectionCard(
+                title: 'Cambiar contraseña',
+                subtitle: 'Pega el enlace o token y define tu nueva contraseña.',
+                child: Form(
+                  key: _resetFormKey,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _tokenCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Token o enlace completo',
+                          helperText: 'Puedes pegar el token o todo el enlace recibido por correo',
+                        ),
+                        validator: _tokenValidator,
                       ),
-                      validator: _tokenValidator,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _newPasswordCtrl,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Nueva contraseña',
-                        suffixIcon: IconButton(
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _newPasswordCtrl,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Nueva contraseña',
+                          suffixIcon: IconButton(
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                          ),
+                        ),
+                        validator: _passwordValidator,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _confirmPasswordCtrl,
+                        obscureText: _obscureConfirmPassword,
+                        decoration: InputDecoration(
+                          labelText: 'Confirmar nueva contraseña',
+                          suffixIcon: IconButton(
+                            onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                            icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                          ),
+                        ),
+                        validator: _confirmPasswordValidator,
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _loadingReset ? null : _reset,
+                          child: Text(_loadingReset ? 'Actualizando...' : 'Actualizar contraseña'),
                         ),
                       ),
-                      validator: _passwordValidator,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _confirmPasswordCtrl,
-                      obscureText: _obscureConfirmPassword,
-                      decoration: InputDecoration(
-                        labelText: 'Confirmar nueva contraseña',
-                        suffixIcon: IconButton(
-                          onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                          icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                        ),
-                      ),
-                      validator: _confirmPasswordValidator,
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _loadingReset ? null : _reset,
-                        child: Text(_loadingReset ? 'Actualizando...' : 'Actualizar contraseña'),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
