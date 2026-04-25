@@ -18,7 +18,8 @@ class EmergencyStatusScreen extends StatefulWidget {
   State<EmergencyStatusScreen> createState() => _EmergencyStatusScreenState();
 }
 
-class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with WidgetsBindingObserver {
+class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
+    with WidgetsBindingObserver {
   final _api = EmergenciesApi();
   final _msgCtrl = TextEditingController();
 
@@ -68,9 +69,11 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
     await _refresh();
   }
 
-  String _stateKey(String? value) => (value ?? '').trim().toLowerCase().replaceAll(' ', '_');
+  String _stateKey(String? value) =>
+      (value ?? '').trim().toLowerCase().replaceAll(' ', '_');
 
-  bool get _isFinalState => _finalStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
+  bool get _isFinalState =>
+      _finalStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
 
   bool get _canCancel {
     final actions = _asMap(_estado?['acciones_disponibles']);
@@ -86,7 +89,9 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
       return actions['puede_ver_tecnico'] as bool;
     }
     final state = _stateKey('${_estado?['estado'] ?? ''}');
-    return state == 'tecnico_asignado' || state == 'en_camino' || state == 'en_proceso';
+    return state == 'tecnico_asignado' ||
+        state == 'en_camino' ||
+        state == 'en_proceso';
   }
 
   Map<String, dynamic>? _asMap(dynamic value) {
@@ -105,12 +110,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
     return out;
   }
 
-  String _shortId(String raw) {
-    final id = raw.trim();
-    if (id.isEmpty) return 'SIN-ID';
-    return id.length <= 8 ? id.toUpperCase() : id.substring(0, 8).toUpperCase();
-  }
-
   String _formatFechaCorta(String? iso) {
     if ((iso ?? '').trim().isEmpty) return 'Sin fecha';
     final parsed = DateTime.tryParse(iso!);
@@ -119,13 +118,20 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
     final local = parsed.toLocal();
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
-    final isToday = local.year == now.year && local.month == now.month && local.day == now.day;
+    final isToday = local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day;
     if (isToday) return 'Hoy $hh:$mm';
     return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} $hh:$mm';
   }
 
   String _labelSolicitudCorto(Map<String, dynamic> s) {
-    final tipo = (s['tipo_cliente'] ?? s['tipo_reportado'] ?? s['tipo'] ?? s['tipo_problema'] ?? 'incidente').toString();
+    final tipo = (s['tipo_cliente'] ??
+            s['tipo_reportado'] ??
+            s['tipo'] ??
+            s['tipo_problema'] ??
+            'incidente')
+        .toString();
     final fecha = _formatFechaCorta(s['fecha_reporte']?.toString());
     final vehiculo = _asMap(s['vehiculo']);
     final placa = (vehiculo?['placa'] ?? '').toString();
@@ -134,13 +140,19 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
   }
 
   String _tipoClientePreferido() {
-    final current = _solicitudes.where((e) => '${e['incidente_id']}' == _incidenteId);
+    final current =
+        _solicitudes.where((e) => '${e['incidente_id']}' == _incidenteId);
     if (current.isNotEmpty) {
       final s = current.first;
-      final fromCliente = (s['tipo_cliente'] ?? s['tipo_reportado'] ?? s['tipo']).toString().trim();
+      final fromCliente =
+          (s['tipo_cliente'] ?? s['tipo_reportado'] ?? s['tipo'])
+              .toString()
+              .trim();
       if (fromCliente.isNotEmpty) return fromCliente;
     }
-    final fallback = (_estado?['tipo'] ?? _estado?['tipo_problema'] ?? '-').toString().trim();
+    final fallback = (_estado?['tipo'] ?? _estado?['tipo_problema'] ?? '-')
+        .toString()
+        .trim();
     return fallback.isEmpty ? '-' : fallback;
   }
 
@@ -213,7 +225,9 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Volver')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
@@ -286,7 +300,9 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
       _timer?.cancel();
       _timer = null;
       return;
@@ -314,7 +330,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
     final pago = _asMap(_estado?['pago_actual']);
     final ubicacion = _asMap(_estado?['ubicacion']);
 
-    final selectedExists = _solicitudes.any((s) => '${s['incidente_id']}' == _incidenteId);
+    final selectedExists =
+        _solicitudes.any((s) => '${s['incidente_id']}' == _incidenteId);
     final selectedValue = selectedExists ? _incidenteId : null;
 
     return Scaffold(
@@ -327,7 +344,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
               Navigator.pop(context);
               return;
             }
-            await Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+            await Navigator.pushNamedAndRemoveUntil(
+                context, AppRoutes.home, (_) => false);
           },
         ),
       ),
@@ -339,7 +357,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
             subtitle: 'Selecciona una solicitud para ver su estado.',
             child: Column(
               children: [
-                if (_loadingSolicitudes) const LinearProgressIndicator(minHeight: 3),
+                if (_loadingSolicitudes)
+                  const LinearProgressIndicator(minHeight: 3),
                 const SizedBox(height: 8),
                 if (_solicitudes.isNotEmpty)
                   DropdownButtonFormField<String>(
@@ -380,7 +399,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
                           const Expanded(
                             child: Text(
                               'Solicitud seleccionada',
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                              style: TextStyle(
+                                  color: AppColors.textMuted, fontSize: 12),
                             ),
                           ),
                           StatusChip(status: estado),
@@ -428,19 +448,23 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
                 Text('Tipo: ${_tipoClientePreferido()}'),
                 Text('Prioridad: ${_estado?['prioridad'] ?? '-'}'),
                 Text('Resumen IA: ${_estado?['resumen_ia'] ?? '-'}'),
-                Text('Taller: ${_estado?['taller_nombre'] ?? taller?['nombre'] ?? '-'}'),
-                Text('Técnico: ${_estado?['tecnico_nombre'] ?? tecnico?['nombre'] ?? '-'}'),
+                Text(
+                    'Taller: ${_estado?['taller_nombre'] ?? taller?['nombre'] ?? '-'}'),
+                Text(
+                    'Técnico: ${_estado?['tecnico_nombre'] ?? tecnico?['nombre'] ?? '-'}'),
                 if (ubicacion != null)
-                  Text('Ubicación enviada: ${ubicacion['latitud'] ?? '-'}, ${ubicacion['longitud'] ?? '-'}'),
+                  Text(
+                      'Ubicación enviada: ${ubicacion['latitud'] ?? '-'}, ${ubicacion['longitud'] ?? '-'}'),
                 if (cotizacion != null)
-                  Text('Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
-                if (pago != null)
-                  Text('Pago: ${pago['estado'] ?? '-'}'),
+                  Text(
+                      'Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
+                if (pago != null) Text('Pago: ${pago['estado'] ?? '-'}'),
                 const SizedBox(height: 10),
                 if (_canCancel)
                   ElevatedButton.icon(
                     onPressed: _cancelarSolicitud,
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.danger),
                     icon: const Icon(Icons.cancel),
                     label: const Text('CU12 · Cancelar solicitud'),
                   )
@@ -479,8 +503,10 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Técnico: ${_tecnicoUbicacion!['tecnico_nombre'] ?? '-'}'),
-                  Text('Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
+                  Text(
+                      'Técnico: ${_tecnicoUbicacion!['tecnico_nombre'] ?? '-'}'),
+                  Text(
+                      'Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
                   Text('Lat: ${_tecnicoUbicacion!['lat'] ?? '-'}'),
                   Text('Lng: ${_tecnicoUbicacion!['lng'] ?? '-'}'),
                 ],
@@ -501,7 +527,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
                 TextField(
                   controller: _msgCtrl,
                   maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Mensaje para el taller'),
+                  decoration: const InputDecoration(
+                      labelText: 'Mensaje para el taller'),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton(
@@ -510,7 +537,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> with Widg
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, AppRoutes.emergenciaReport),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.emergenciaReport),
                   icon: const Icon(Icons.add_alert),
                   label: const Text('Reportar nueva emergencia'),
                 ),
