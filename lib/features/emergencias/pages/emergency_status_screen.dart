@@ -94,6 +94,32 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
         state == 'en_proceso';
   }
 
+  bool get _canRespondQuote {
+    final actions = _asMap(_estado?['acciones_disponibles']);
+    if (actions != null && actions['puede_responder_cotizacion'] is bool) {
+      return actions['puede_responder_cotizacion'] as bool;
+    }
+    final cot = _asMap(_estado?['cotizacion_actual']);
+    final est = (cot?['estado'] ?? '').toString().toLowerCase();
+    return est == 'emitida' || est == 'pendiente' || est == 'enviada';
+  }
+
+  bool get _canPay {
+    final actions = _asMap(_estado?['acciones_disponibles']);
+    if (actions != null && actions['puede_pagar'] is bool) {
+      return actions['puede_pagar'] as bool;
+    }
+    return false;
+  }
+
+  bool get _canEvaluate {
+    final actions = _asMap(_estado?['acciones_disponibles']);
+    if (actions != null && actions['puede_evaluar_servicio'] is bool) {
+      return actions['puede_evaluar_servicio'] as bool;
+    }
+    return false;
+  }
+
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return value.map((k, v) => MapEntry(k.toString(), v));
@@ -298,6 +324,175 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     }
   }
 
+  Future<void> _responderCotizacion(bool aceptar) async {
+    final cot = _asMap(_estado?['cotizacion_actual']);
+    final cotId = (cot?['id'] ?? '').toString().trim();
+    if (cotId.isEmpty) return;
+
+    final obsCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(aceptar ? 'Aceptar cotización' : 'Rechazar cotización'),
+        content: TextField(
+          controller: obsCtrl,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Observaciones (opcional)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: !aceptar
+                ? ElevatedButton.styleFrom(backgroundColor: AppColors.danger)
+                : null,
+            child: Text(aceptar ? 'Aceptar' : 'Rechazar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      if (aceptar) {
+        await _api.acceptQuote(cotId, observaciones: obsCtrl.text.trim());
+      } else {
+        await _api.rejectQuote(cotId, observaciones: obsCtrl.text.trim());
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            aceptar ? 'Cotización aceptada correctamente' : 'Cotización rechazada correctamente',
+          ),
+        ),
+      );
+      await _refresh();
+      await _cargarSolicitudes();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _procesarPago() async {
+    final cot = _asMap(_estado?['cotizacion_actual']);
+    final cotId = (cot?['id'] ?? '').toString().trim();
+    if (cotId.isEmpty) return;
+    String metodo = 'qr';
+    final referenciaCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('CU22 · Procesar pago'),
+        content: StatefulBuilder(
+          builder: (context, setLocalState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: metodo,
+                items: const [
+                  DropdownMenuItem(value: 'qr', child: Text('QR')),
+                  DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
+                  DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
+                ],
+                onChanged: (v) => setLocalState(() => metodo = (v ?? 'qr')),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: referenciaCtrl,
+                decoration: const InputDecoration(labelText: 'Referencia (opcional)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmar pago')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _api.processPayment(
+        cotizacionId: cotId,
+        metodoPago: metodo,
+        referencia: referenciaCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pago procesado correctamente')),
+      );
+      await _refresh();
+      await _cargarSolicitudes();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _evaluarServicio() async {
+    int calificacion = 5;
+    final comentarioCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('CU24 · Evaluar servicio'),
+        content: StatefulBuilder(
+          builder: (context, setLocalState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                value: calificacion,
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text('1 estrella')),
+                  DropdownMenuItem(value: 2, child: Text('2 estrellas')),
+                  DropdownMenuItem(value: 3, child: Text('3 estrellas')),
+                  DropdownMenuItem(value: 4, child: Text('4 estrellas')),
+                  DropdownMenuItem(value: 5, child: Text('5 estrellas')),
+                ],
+                onChanged: (v) => setLocalState(() => calificacion = v ?? 5),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: comentarioCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Comentario (opcional)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enviar evaluación')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _api.evaluateService(
+        incidenteId: _incidenteId,
+        calificacion: calificacion,
+        comentario: comentarioCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Evaluación registrada')),
+      );
+      await _refresh();
+      await _cargarSolicitudes();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
@@ -459,6 +654,47 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                   Text(
                       'Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
                 if (pago != null) Text('Pago: ${pago['estado'] ?? '-'}'),
+                if (cotizacion != null &&
+                    _canRespondQuote &&
+                    !_isFinalState) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _responderCotizacion(true),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('Aceptar cotización'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _responderCotizacion(false),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+                          icon: const Icon(Icons.cancel_outlined),
+                          label: const Text('Rechazar cotización'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (_canPay && !_isFinalState) ...[
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: _procesarPago,
+                    icon: const Icon(Icons.payments_outlined),
+                    label: const Text('CU22 · Procesar pago'),
+                  ),
+                ],
+                if (_canEvaluate) ...[
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: _evaluarServicio,
+                    icon: const Icon(Icons.star_outline),
+                    label: const Text('CU24 · Evaluar servicio'),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 if (_canCancel)
                   ElevatedButton.icon(

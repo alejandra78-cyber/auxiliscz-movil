@@ -125,6 +125,12 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.search),
               label: Text(_openingConsulta ? 'Abriendo...' : 'Consultar emergencia'),
             ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.serviciosHistorial),
+              icon: const Icon(Icons.history),
+              label: const Text('Historial de servicios'),
+            ),
           ],
           if (_isTecnico) ...[
             ElevatedButton.icon(

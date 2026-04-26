@@ -201,4 +201,67 @@ class EmergenciesApi {
     if (decoded is! List) return const [];
     return decoded.whereType<Map<String, dynamic>>().toList();
   }
+
+  Future<Map<String, dynamic>> acceptQuote(String cotizacionId, {String? observaciones}) async {
+    final res = await _apiClient.post('/pagos/cliente/cotizaciones/$cotizacionId/aceptar', body: {
+      if ((observaciones ?? '').trim().isNotEmpty) 'observaciones': observaciones!.trim(),
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo aceptar cotización: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectQuote(String cotizacionId, {String? observaciones}) async {
+    final res = await _apiClient.post('/pagos/cliente/cotizaciones/$cotizacionId/rechazar', body: {
+      if ((observaciones ?? '').trim().isNotEmpty) 'observaciones': observaciones!.trim(),
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo rechazar cotización: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> processPayment({
+    required String cotizacionId,
+    required String metodoPago,
+    String? comprobanteUrl,
+    String? referencia,
+  }) async {
+    final res = await _apiClient.post('/pagos/cliente/pagos/procesar', body: {
+      'cotizacion_id': cotizacionId,
+      'metodo_pago': metodoPago,
+      if ((comprobanteUrl ?? '').trim().isNotEmpty) 'comprobante_url': comprobanteUrl!.trim(),
+      if ((referencia ?? '').trim().isNotEmpty) 'referencia': referencia!.trim(),
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo procesar pago: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> evaluateService({
+    required String incidenteId,
+    required int calificacion,
+    String? comentario,
+  }) async {
+    final res = await _apiClient.post('/clientes/solicitudes/$incidenteId/evaluar', body: {
+      'calificacion': calificacion,
+      if ((comentario ?? '').trim().isNotEmpty) 'comentario': comentario!.trim(),
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo registrar evaluación: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> getHistoryServices() async {
+    final res = await _apiClient.get('/clientes/historial-servicios');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo obtener historial: ${res.body}');
+    }
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map<String, dynamic>>().toList();
+  }
 }

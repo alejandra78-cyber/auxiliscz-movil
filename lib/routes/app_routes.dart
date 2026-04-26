@@ -4,6 +4,7 @@ import '../features/auth/pages/login_screen.dart';
 import '../features/auth/pages/recover_password_screen.dart';
 import '../features/auth/pages/register_screen.dart';
 import '../features/emergencias/pages/emergency_status_screen.dart';
+import '../features/emergencias/pages/history_services_screen.dart';
 import '../features/emergencias/pages/report_emergency_screen.dart';
 import '../features/home/pages/home_screen.dart';
 import '../features/tecnico/pages/tecnico_tracking_screen.dart';
@@ -18,6 +19,7 @@ class AppRoutes {
   static const emergenciaReport = '/emergencia/report';
   static const emergenciaStatus = '/emergencia-status';
   static const tecnicoTracking = '/tecnico/tracking';
+  static const serviciosHistorial = '/cliente/historial-servicios';
 
   static Map<String, WidgetBuilder> get routes => {
         login: (context) => const LoginScreen(),
@@ -29,6 +31,7 @@ class AppRoutes {
         vehiculoRegister: (context) => const RegisterVehicleScreen(),
         emergenciaReport: (context) => const ReportEmergencyScreen(),
         tecnicoTracking: (context) => const TecnicoTrackingScreen(),
+        serviciosHistorial: (context) => const HistoryServicesScreen(),
       };
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
