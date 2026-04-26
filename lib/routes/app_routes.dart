@@ -8,9 +8,10 @@ import '../features/emergencias/pages/report_emergency_screen.dart';
 import '../features/home/pages/home_screen.dart';
 import '../features/tecnico/pages/tecnico_tracking_screen.dart';
 import '../features/vehiculos/pages/register_vehicle_screen.dart';
-//import '../features/cliente/pages/history_screen.dart';
-//import '../features/pagos/pages/payment_screen.dart';
-//import '../features/calificaciones/pages/evaluate_service_screen.dart';
+import '../features/cliente/pages/history_screen.dart';
+import '../features/pagos/pages/payment_screen.dart';
+import '../features/calificaciones/pages/evaluate_service_screen.dart';
+import '../features/tecnico/pages/tecnico_dashboard_screen.dart';
 
 class AppRoutes {
   static const login = '/login';
@@ -24,6 +25,7 @@ class AppRoutes {
   static const historial = '/cliente/historial';
   static const pago = '/cliente/pago';
   static const evaluar = '/cliente/evaluar';
+  static const tecnicoDashboard = '/tecnico/dashboard';
 
   static Map<String, WidgetBuilder> get routes => {
         login: (context) => const LoginScreen(),
@@ -33,9 +35,10 @@ class AppRoutes {
         vehiculoRegister: (context) => const RegisterVehicleScreen(),
         emergenciaReport: (context) => const ReportEmergencyScreen(),
         tecnicoTracking: (context) => const TecnicoTrackingScreen(),
-        //historial: (context) => const HistoryScreen(),
-        //pago: (context) => const PaymentScreen(),
-        //evaluar: (context) => const EvaluateServiceScreen(),
+        historial: (context) => const HistoryScreen(),
+        pago: (context) => const PaymentScreen(),
+        evaluar: (context) => const EvaluateServiceScreen(),
+        tecnicoDashboard: (context) => const TecnicoDashboardScreen(),
       };
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {

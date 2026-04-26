@@ -6,20 +6,22 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/network/api_client.dart';
 
 class EmergenciesApi {
-  EmergenciesApi({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+  EmergenciesApi({ApiClient? apiClient})
+      : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 
-  Future<String> reportEmergency({
+  Future<Map<String, dynamic>> reportEmergencyFull({
     required String vehiculoId,
     required String tipo,
     required double lat,
     required double lng,
     required String descripcion,
     XFile? foto,
-    XFile? audio,
+    String? audioPath,
   }) async {
     final files = <http.MultipartFile>[];
+
     if (foto != null) {
       final fotoBytes = await foto.readAsBytes();
       files.add(
@@ -30,35 +32,44 @@ class EmergenciesApi {
         ),
       );
     }
-    if (audio != null) {
-      final audioBytes = await audio.readAsBytes();
+
+    if (audioPath != null && audioPath.isNotEmpty) {
       files.add(
-        http.MultipartFile.fromBytes(
+        await http.MultipartFile.fromPath(
           'audio',
-          audioBytes,
-          filename: audio.name.isNotEmpty ? audio.name : 'audio_emergencia.webm',
+          audioPath,
+          filename: 'audio_emergencia.m4a',
         ),
       );
     }
 
-    final res = await _apiClient.multipart('/emergencias/reportar', fields: {
-      'vehiculo_id': vehiculoId,
-      'tipo': tipo,
-      'lat': lat.toString(),
-      'lng': lng.toString(),
-      'descripcion': descripcion,
-    }, files: files);
+    final res = await _apiClient.multipart(
+      '/emergencias/reportar',
+      fields: {
+        'vehiculo_id': vehiculoId,
+        'tipo': tipo,
+        'lat': lat.toString(),
+        'lng': lng.toString(),
+        'descripcion': descripcion,
+      },
+      files: files,
+    );
 
     final raw = await res.stream.bytesToString();
+
     if (res.statusCode != 200) {
       throw Exception('No se pudo reportar emergencia: $raw');
     }
-    final map = ApiClient.decodeJsonMap(raw);
-    return (map['incidente_id'] ?? '').toString();
+
+    return jsonDecode(raw) as Map<String, dynamic>;
   }
 
-  Future<void> sendGps({required String incidenteId, required double lat, required double lng}) async {
-    final res = await _apiClient.patch('/emergencias/solicitud/$incidenteId/ubicacion', body: {
+  Future<void> sendGps(
+      {required String incidenteId,
+      required double lat,
+      required double lng}) async {
+    final res = await _apiClient
+        .patch('/emergencias/solicitud/$incidenteId/ubicacion', body: {
       'lat': lat,
       'lng': lng,
     });
@@ -67,14 +78,18 @@ class EmergenciesApi {
     }
   }
 
-  Future<void> uploadImage({required String incidenteId, required XFile image}) async {
+  Future<void> uploadImage(
+      {required String incidenteId, required XFile image}) async {
     final bytes = await image.readAsBytes();
     final file = http.MultipartFile.fromBytes(
       'imagen',
       bytes,
       filename: image.name.isNotEmpty ? image.name : 'evidencia.jpg',
     );
-    final res = await _apiClient.multipart('/emergencias/solicitud/$incidenteId/imagenes', fields: {}, files: [file]);
+    final res = await _apiClient.multipart(
+        '/emergencias/solicitud/$incidenteId/imagenes',
+        fields: {},
+        files: [file]);
     final raw = await res.stream.bytesToString();
     if (res.statusCode != 200) {
       throw Exception('No se pudo subir imagen: $raw');
@@ -98,14 +113,16 @@ class EmergenciesApi {
   }
 
   Future<void> cancelEmergency(String incidenteId) async {
-    final res = await _apiClient.patch('/emergencias/solicitud/$incidenteId/cancelar');
+    final res =
+        await _apiClient.patch('/emergencias/solicitud/$incidenteId/cancelar');
     if (res.statusCode != 200) {
       throw Exception('No se pudo cancelar la solicitud: ${res.body}');
     }
   }
 
   Future<Map<String, dynamic>> getTechnicianLocation(String incidenteId) async {
-    final res = await _apiClient.get('/clientes/solicitudes/$incidenteId/tecnico-ubicacion');
+    final res = await _apiClient
+        .get('/clientes/solicitudes/$incidenteId/tecnico-ubicacion');
     if (res.statusCode != 200) {
       throw Exception('No se pudo obtener ubicación del técnico: ${res.body}');
     }
@@ -122,18 +139,21 @@ class EmergenciesApi {
     return decoded.whereType<Map<String, dynamic>>().toList();
   }
 
-  Future<void> updateMyTechnicianLocation({required double lat, required double lng}) async {
+  Future<void> updateMyTechnicianLocation(
+      {required double lat, required double lng}) async {
     final res = await _apiClient.patch('/taller/tecnicos/mi-ubicacion', body: {
       'lat': lat,
       'lng': lng,
     });
     if (res.statusCode != 200) {
-      throw Exception('No se pudo actualizar ubicación del técnico: ${res.body}');
+      throw Exception(
+          'No se pudo actualizar ubicación del técnico: ${res.body}');
     }
   }
 
   Future<List<Map<String, dynamic>>> getMessages(String incidenteId) async {
-    final res = await _apiClient.get('/emergencias/solicitud/$incidenteId/mensajes');
+    final res =
+        await _apiClient.get('/emergencias/solicitud/$incidenteId/mensajes');
     if (res.statusCode != 200) {
       throw Exception('No se pudieron obtener mensajes: ${res.body}');
     }
@@ -143,7 +163,8 @@ class EmergenciesApi {
   }
 
   Future<void> sendMessage(String incidenteId, String texto) async {
-    final res = await _apiClient.post('/emergencias/solicitud/$incidenteId/mensajes', body: {
+    final res = await _apiClient
+        .post('/emergencias/solicitud/$incidenteId/mensajes', body: {
       'texto': texto,
     });
     if (res.statusCode != 200) {
@@ -161,7 +182,8 @@ class EmergenciesApi {
     return decoded.whereType<Map<String, dynamic>>().toList();
   }
 
-  Future<List<Map<String, dynamic>>> getNotifications({String? incidenteId}) async {
+  Future<List<Map<String, dynamic>>> getNotifications(
+      {String? incidenteId}) async {
     final query = (incidenteId != null && incidenteId.isNotEmpty)
         ? '?incidente_id=$incidenteId'
         : '';
@@ -172,5 +194,66 @@ class EmergenciesApi {
     final decoded = jsonDecode(res.body);
     if (decoded is! List) return const [];
     return decoded.whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<Map<String, dynamic>> evaluateService({
+    required String incidenteId,
+    required int estrellas,
+    String? comentario,
+  }) async {
+    final res = await _apiClient.post(
+      '/clientes/solicitudes/$incidenteId/evaluar',
+      body: {
+        'estrellas': estrellas,
+        'comentario': comentario,
+      },
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo evaluar el servicio: ${res.body}');
+    }
+
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> processPayment({
+    required String incidenteId,
+    required String metodo,
+  }) async {
+    final res = await _apiClient.post(
+      '/pagos/procesar',
+      body: {
+        'solicitud_id': incidenteId,
+        'metodo': metodo,
+      },
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo procesar el pago: ${res.body}');
+    }
+
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> getServiceHistory() async {
+    final res = await _apiClient.get('/clientes/servicios/historial');
+
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo obtener historial: ${res.body}');
+    }
+
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> completeTechnicianService(String incidenteId) async {
+    final res = await _apiClient.patch(
+      '/taller/mi-taller/servicios/$incidenteId/completar',
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo completar el servicio: ${res.body}');
+    }
   }
 }

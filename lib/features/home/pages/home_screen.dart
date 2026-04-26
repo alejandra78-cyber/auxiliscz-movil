@@ -118,7 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 12),
-
           if (!_isTecnico) ...[
             ElevatedButton.icon(
               onPressed: () =>
@@ -127,7 +126,6 @@ class _HomeScreenState extends State<HomeScreen> {
               label: const Text('Registrar vehículo'),
             ),
             const SizedBox(height: 10),
-
             ElevatedButton.icon(
               onPressed: () =>
                   Navigator.pushNamed(context, AppRoutes.emergenciaReport),
@@ -138,14 +136,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 10),
-
             ElevatedButton.icon(
               onPressed: () => _openConsulta(context),
               icon: const Icon(Icons.search),
               label: const Text('Consultar emergencia'),
             ),
             const SizedBox(height: 10),
-
             ElevatedButton.icon(
               onPressed: () =>
                   Navigator.pushNamed(context, AppRoutes.historial),
@@ -153,32 +149,29 @@ class _HomeScreenState extends State<HomeScreen> {
               label: const Text('Historial de servicios'),
             ),
             const SizedBox(height: 10),
-
             ElevatedButton.icon(
               onPressed: () => Navigator.pushNamed(context, AppRoutes.pago),
               icon: const Icon(Icons.payments),
               label: const Text('Procesar pago'),
             ),
             const SizedBox(height: 10),
-
             ElevatedButton.icon(
               onPressed: () => Navigator.pushNamed(context, AppRoutes.evaluar),
               icon: const Icon(Icons.star),
               label: const Text('Evaluar servicio'),
             ),
           ],
-
           if (_isTecnico) ...[
             ElevatedButton.icon(
-              onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.tecnicoTracking),
-              icon: const Icon(Icons.location_searching),
-              label: const Text('Compartir ubicación en tiempo real'),
+              onPressed: () => Navigator.pushNamed(
+                context,
+                AppRoutes.tecnicoDashboard,
+              ),
+              icon: const Icon(Icons.engineering),
+              label: const Text('Panel técnico'),
             ),
           ],
-
           const SizedBox(height: 10),
-
           OutlinedButton.icon(
             onPressed: () => Navigator.pushNamed(context, AppRoutes.recover),
             icon: const Icon(Icons.lock_reset),

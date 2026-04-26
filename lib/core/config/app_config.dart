@@ -19,6 +19,9 @@ class AppConfig {
 
     // Android emulator must use 10.0.2.2 to access host machine.
     if (defaultTargetPlatform == TargetPlatform.android) {
+      const fromEnv = String.fromEnvironment('API_BASE_URL');
+      if (fromEnv.isNotEmpty) return fromEnv;
+
       return 'http://10.0.2.2:8000/api';
     }
 

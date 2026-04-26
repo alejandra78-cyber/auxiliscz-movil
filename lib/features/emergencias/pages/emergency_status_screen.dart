@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'live_tracking_map_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -185,7 +187,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
             ),
           if (_solicitudes.isNotEmpty)
             DropdownButtonFormField<String>(
-              value: _incidenteId,
+              initialValue: _incidenteId,
               decoration: const InputDecoration(labelText: 'Solicitud'),
               items: _solicitudes.map((s) {
                 final id = '${s['incidente_id']}';
@@ -234,6 +236,25 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen> {
           ElevatedButton(
             onPressed: puedeVerTecnico ? _verUbicacionTecnico : null,
             child: const Text('Ver ubicación del técnico'),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            onPressed: _tecnicoUbicacion == null
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => LiveTrackingMapScreen(
+                          incidenteId: _incidenteId,
+                          clienteLat: _toDouble(_estado?['lat']) ?? -17.7833,
+                          clienteLng: _toDouble(_estado?['lng']) ?? -63.1821,
+                        ),
+                      ),
+                    );
+                  },
+            icon: const Icon(Icons.map),
+            label: const Text('Ver técnico en mapa (tiempo real)'),
           ),
           if (_tecnicoUbicacion != null) ...[
             const SizedBox(height: 8),

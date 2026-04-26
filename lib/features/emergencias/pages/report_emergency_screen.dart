@@ -1,15 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../../routes/app_routes.dart';
-import '../services/emergencias_api.dart';
-import '../../vehiculos/services/vehiculos_api.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../vehiculos/services/vehiculos_api.dart';
+import '../services/emergencias_api.dart';
 
 class ReportEmergencyScreen extends StatefulWidget {
   const ReportEmergencyScreen({super.key});
@@ -34,19 +35,19 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   final _descripcionCtrl = TextEditingController();
   final _picker = ImagePicker();
   final _recorder = AudioRecorder();
-  bool _isRecording = false;
 
   StreamSubscription<Position>? _gpsSubscription;
 
   List<VehicleOption> _vehiculos = const [];
   String? _vehiculoIdSelected;
-  bool _loadingVehiculos = true;
   String _vehiculosError = '';
   XFile? _image;
   XFile? _audio;
   Position? _position;
+  bool _loadingVehiculos = true;
   bool _loading = false;
   bool _trackingGps = false;
+  bool _isRecording = false;
   String _tipoSelected = 'otro';
 
   @override
@@ -85,8 +86,8 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.deniedForever ||
-        permission == LocationPermission.denied) {
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
       throw Exception('Permiso de ubicación denegado');
     }
   }
@@ -139,9 +140,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
 
       setState(() {
         _isRecording = false;
-        if (path != null) {
-          _audio = XFile(path);
-        }
+        if (path != null) _audio = XFile(path);
       });
 
       if (!mounted) return;
@@ -152,7 +151,6 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
     }
 
     final hasPermission = await _recorder.hasPermission();
-
     if (!hasPermission) {
       throw Exception('Permiso de micrófono denegado');
     }
@@ -188,15 +186,17 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
         await _startRealtimeLocation();
       }
 
-      final incidenteId = await _api.reportEmergency(
+      final result = await _api.reportEmergencyFull(
         vehiculoId: _vehiculoIdSelected!,
         tipo: _tipoSelected,
         lat: _position!.latitude,
         lng: _position!.longitude,
         descripcion: _descripcionCtrl.text.trim(),
         foto: _image,
-        audio: _audio,
+        audioPath: _audio?.path,
       );
+
+      final incidenteId = result['incidente_id'].toString();
 
       await _api.sendGps(
         incidenteId: incidenteId,
@@ -207,7 +207,29 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       await _stopRealtimeLocation();
 
       if (!mounted) return;
-      Navigator.pushNamed(
+
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Emergencia reportada'),
+          content: Text(
+            'ID: $incidenteId\n\n'
+            'Clasificación IA: ${result['clasificacion_ia'] ?? result['tipo'] ?? '-'}\n'
+            'Prioridad: ${result['prioridad'] ?? '-'}\n'
+            'Transcripción: ${result['transcripcion_audio'] ?? 'Sin audio'}\n'
+            'Resumen IA: ${result['resumen_ia'] ?? 'Sin resumen'}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
         context,
         AppRoutes.emergenciaStatus,
         arguments: incidenteId,
@@ -396,7 +418,17 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
             icon: const Icon(Icons.photo_camera),
             label: const Text('Adjuntar foto del vehículo'),
           ),
-          if (_image != null) Text('Foto seleccionada: ${_image!.name}'),
+          if (_image != null) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(_image!.path),
+                height: 200,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: _loading
@@ -418,7 +450,10 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                   : 'Grabar audio describiendo el problema',
             ),
           ),
-          if (_audio != null) const Text('Audio grabado listo para enviar'),
+          if (_audio != null) ...[
+            const SizedBox(height: 8),
+            const Text('Audio grabado listo para enviar y transcribir'),
+          ],
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loading ? null : _submit,
