@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import '../features/auth/pages/login_screen.dart';
 import '../features/auth/pages/recover_password_screen.dart';
 import '../features/auth/pages/register_screen.dart';
-import '../features/emergencias/pages/emergency_status_screen.dart';
-import '../features/emergencias/pages/history_services_screen.dart';
+import '../features/clientes_vehiculos/pages/emergency_status_screen.dart';
+import '../features/clientes_vehiculos/pages/register_vehicle_screen.dart';
+import '../features/historial/pages/history_services_screen.dart';
 import '../features/emergencias/pages/report_emergency_screen.dart';
 import '../features/home/pages/home_screen.dart';
-import '../features/tecnico/pages/tecnico_tracking_screen.dart';
-import '../features/vehiculos/pages/register_vehicle_screen.dart';
+import '../features/seguimiento/pages/technician_location_screen.dart';
 
 class AppRoutes {
   static const login = '/login';
@@ -18,7 +18,7 @@ class AppRoutes {
   static const vehiculoRegister = '/vehiculo/register';
   static const emergenciaReport = '/emergencia/report';
   static const emergenciaStatus = '/emergencia-status';
-  static const tecnicoTracking = '/tecnico/tracking';
+  static const tecnicoLocation = '/tecnico/location';
   static const serviciosHistorial = '/cliente/historial-servicios';
 
   static Map<String, WidgetBuilder> get routes => {
@@ -30,7 +30,6 @@ class AppRoutes {
         home: (context) => const HomeScreen(),
         vehiculoRegister: (context) => const RegisterVehicleScreen(),
         emergenciaReport: (context) => const ReportEmergencyScreen(),
-        tecnicoTracking: (context) => const TecnicoTrackingScreen(),
         serviciosHistorial: (context) => const HistoryServicesScreen(),
       };
 
@@ -49,6 +48,14 @@ class AppRoutes {
           : '';
       return MaterialPageRoute(
         builder: (_) => EmergencyStatusScreen(incidenteId: incidenteId),
+      );
+    }
+    if (settings.name == tecnicoLocation) {
+      final incidenteId = (settings.arguments is String)
+          ? (settings.arguments as String)
+          : '';
+      return MaterialPageRoute(
+        builder: (_) => TechnicianLocationScreen(incidenteId: incidenteId),
       );
     }
     return null;

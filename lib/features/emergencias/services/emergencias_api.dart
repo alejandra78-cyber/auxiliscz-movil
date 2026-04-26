@@ -125,7 +125,7 @@ class EmergenciesApi {
   }
 
   Future<Map<String, dynamic>> getTechnicianLocation(String incidenteId) async {
-    final res = await _apiClient.get('/clientes/solicitudes/$incidenteId/tecnico-ubicacion');
+    final res = await _apiClient.get('/clientes/solicitudes/$incidenteId/ubicacion-tecnico');
     if (res.statusCode != 200) {
       throw Exception('No se pudo obtener ubicación del técnico: ${res.body}');
     }

@@ -74,8 +74,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _openingConsulta = false);
   }
 
-  bool get _isTecnico => _role == 'tecnico';
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -106,39 +104,30 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          if (!_isTecnico) ...[
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.vehiculoRegister),
-              icon: const Icon(Icons.directions_car),
-              label: const Text('Registrar vehículo'),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.emergenciaReport),
-              icon: const Icon(Icons.emergency_share),
-              label: const Text('Reportar emergencia'),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton.icon(
-              onPressed: _openingConsulta ? null : () => _openConsulta(context),
-              icon: const Icon(Icons.search),
-              label: Text(_openingConsulta ? 'Abriendo...' : 'Consultar emergencia'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.serviciosHistorial),
-              icon: const Icon(Icons.history),
-              label: const Text('Historial de servicios'),
-            ),
-          ],
-          if (_isTecnico) ...[
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.tecnicoTracking),
-              icon: const Icon(Icons.location_searching),
-              label: const Text('Compartir ubicación en tiempo real'),
-            ),
-          ],
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.vehiculoRegister),
+            icon: const Icon(Icons.directions_car),
+            label: const Text('Registrar vehículo'),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.emergenciaReport),
+            icon: const Icon(Icons.emergency_share),
+            label: const Text('Reportar emergencia'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: _openingConsulta ? null : () => _openConsulta(context),
+            icon: const Icon(Icons.search),
+            label: Text(_openingConsulta ? 'Abriendo...' : 'Consultar emergencia'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.serviciosHistorial),
+            icon: const Icon(Icons.history),
+            label: const Text('Historial de servicios'),
+          ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: () => Navigator.pushNamed(context, AppRoutes.recover),

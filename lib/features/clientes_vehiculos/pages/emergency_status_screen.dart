@@ -7,7 +7,7 @@ import '../../../routes/app_routes.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_chip.dart';
-import '../services/emergencias_api.dart';
+import '../../emergencias/services/emergencias_api.dart';
 
 class EmergencyStatusScreen extends StatefulWidget {
   const EmergencyStatusScreen({super.key, required this.incidenteId});
@@ -741,10 +741,23 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 children: [
                   Text(
                       'Técnico: ${_tecnicoUbicacion!['tecnico_nombre'] ?? '-'}'),
-                  Text(
-                      'Especialidad: ${_tecnicoUbicacion!['especialidad'] ?? '-'}'),
-                  Text('Lat: ${_tecnicoUbicacion!['lat'] ?? '-'}'),
-                  Text('Lng: ${_tecnicoUbicacion!['lng'] ?? '-'}'),
+                  Text('Estado: ${_tecnicoUbicacion!['estado_servicio'] ?? '-'}'),
+                  Text('Última actualización: ${_tecnicoUbicacion!['ultima_actualizacion'] ?? '-'}'),
+                  if ((_tecnicoUbicacion!['mensaje'] ?? '').toString().trim().isNotEmpty)
+                    Text(
+                      '${_tecnicoUbicacion!['mensaje']}',
+                      style: const TextStyle(color: AppColors.textMuted),
+                    ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.tecnicoLocation,
+                      arguments: _incidenteId,
+                    ),
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('Ver ubicación del técnico'),
+                  ),
                 ],
               ),
             ),

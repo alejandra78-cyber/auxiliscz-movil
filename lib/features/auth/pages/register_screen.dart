@@ -114,7 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               SectionCard(
-                title: 'CU01 · Registrarse',
+                title: 'Registrarse',
                 subtitle: 'Completa tus datos para crear cuenta de cliente.',
                 child: Column(
                   children: [

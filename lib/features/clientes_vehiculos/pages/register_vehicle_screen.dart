@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_chip.dart';
-import '../services/vehiculos_api.dart';
+import '../../vehiculos/services/vehiculos_api.dart';
 
 class RegisterVehicleScreen extends StatefulWidget {
   const RegisterVehicleScreen({super.key});
@@ -203,7 +203,7 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
             Form(
               key: _formKey,
               child: SectionCard(
-                title: _editing ? 'CU10 · Editar vehículo' : 'CU10 · Registrar vehículo',
+                title: _editing ? 'CU10 · Editar vehículo' : 'Registrar vehículo',
                 subtitle: 'Gestiona los vehículos vinculados a tu cuenta.',
                 icon: Icons.directions_car_filled_outlined,
                 child: Column(

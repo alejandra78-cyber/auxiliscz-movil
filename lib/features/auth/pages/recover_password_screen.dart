@@ -147,7 +147,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             SectionCard(
-              title: 'CU05 · Recuperar contraseña',
+              title: 'Recuperar contraseña',
               subtitle: 'Ingresa tu correo y te enviaremos un enlace seguro.',
               child: Form(
                 key: _requestFormKey,

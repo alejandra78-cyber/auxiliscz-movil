@@ -214,7 +214,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           SectionCard(
-            title: 'CU11 · Reportar emergencia',
+            title: 'Reportar emergencia',
             subtitle: 'Paso 1: Selecciona vehículo y tipo de incidente.',
             icon: Icons.emergency_share,
             child: Column(

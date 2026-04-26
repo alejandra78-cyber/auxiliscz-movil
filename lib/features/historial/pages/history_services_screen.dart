@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/section_card.dart';
-import '../services/emergencias_api.dart';
+import '../../emergencias/services/emergencias_api.dart';
 
 class HistoryServicesScreen extends StatefulWidget {
   const HistoryServicesScreen({super.key});
@@ -42,7 +42,7 @@ class _HistoryServicesScreenState extends State<HistoryServicesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('CU25 · Historial de servicios')),
+      appBar: AppBar(title: const Text('Historial de servicios')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
