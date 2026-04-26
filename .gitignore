@@ -66,6 +66,9 @@ android/app/build/
 ios/Pods/
 ios/.symlinks/
 
+android/build/
+build/
+
 linux/flutter/generated*
 macos/Flutter/Generated*
 windows/flutter/generated*
