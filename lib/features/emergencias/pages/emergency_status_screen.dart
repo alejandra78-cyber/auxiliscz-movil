@@ -699,7 +699,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 if (_canCancel)
                   ElevatedButton.icon(
                     onPressed: _cancelarSolicitud,
-                    style: ElevatedButton.styleFrom(
+                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.danger),
                     icon: const Icon(Icons.cancel),
                     label: const Text('Cancelar solicitud'),

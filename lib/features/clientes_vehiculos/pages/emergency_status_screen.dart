@@ -32,11 +32,17 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   bool _loadingSolicitudes = false;
   bool _sending = false;
   Timer? _timer;
+  StreamSubscription<Position>? _gpsSubscription;
+  DateTime? _lastGpsSentAt;
+  bool _trackingActivo = false;
+  String _trackingMensaje = 'Seguimiento GPS inactivo';
 
   static const _cancelableStates = {
     'pendiente',
     'buscando_taller',
     'pendiente_asignacion',
+    'en_revision',
+    'en_evaluacion',
     'asignado',
     'pendiente_respuesta',
     'pendiente_respuesta_taller',
@@ -228,11 +234,116 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
         _timer?.cancel();
         _timer = null;
       }
+      unawaited(_sincronizarTrackingCliente());
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       _refreshing = false;
+    }
+  }
+
+  Future<void> _sincronizarTrackingCliente() async {
+    if (_incidenteId.isEmpty || _isFinalState) {
+      await _detenerTrackingCliente('Seguimiento GPS detenido');
+      return;
+    }
+    if (_gpsSubscription != null) return;
+    await _iniciarTrackingCliente();
+  }
+
+  Future<void> _iniciarTrackingCliente() async {
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        if (!mounted) return;
+        setState(() {
+          _trackingActivo = false;
+          _trackingMensaje = 'Activa el GPS para compartir ubicación en tiempo real';
+        });
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        setState(() {
+          _trackingActivo = false;
+          _trackingMensaje = 'Permiso de ubicación denegado';
+        });
+        return;
+      }
+
+      final settings = const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      );
+      _gpsSubscription = Geolocator.getPositionStream(locationSettings: settings)
+          .listen((pos) {
+        unawaited(_enviarGpsTracking(pos));
+      });
+
+      // Envía inmediatamente al iniciar el seguimiento.
+      final first = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
+      );
+      await _enviarGpsTracking(first, force: true);
+      if (!mounted) return;
+      setState(() {
+        _trackingActivo = true;
+        _trackingMensaje = 'Compartiendo ubicación en tiempo real';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _trackingActivo = false;
+        _trackingMensaje = 'No se pudo iniciar el seguimiento GPS';
+      });
+    }
+  }
+
+  Future<void> _detenerTrackingCliente([String? mensaje]) async {
+    await _gpsSubscription?.cancel();
+    _gpsSubscription = null;
+    if (!mounted) return;
+    setState(() {
+      _trackingActivo = false;
+      _trackingMensaje = mensaje ?? 'Seguimiento GPS inactivo';
+    });
+  }
+
+  Future<void> _enviarGpsTracking(Position pos, {bool force = false}) async {
+    if (_incidenteId.isEmpty) return;
+    final now = DateTime.now();
+    if (!force &&
+        _lastGpsSentAt != null &&
+        now.difference(_lastGpsSentAt!).inSeconds < 10) {
+      return;
+    }
+    try {
+      await _api.sendGps(
+        incidenteId: _incidenteId,
+        lat: pos.latitude,
+        lng: pos.longitude,
+      );
+      _lastGpsSentAt = now;
+      if (!mounted) return;
+      setState(() {
+        _trackingActivo = true;
+        _trackingMensaje =
+            'Ubicación actualizada ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _trackingActivo = false;
+        _trackingMensaje = 'No se pudo enviar ubicación en este momento';
+      });
     }
   }
 
@@ -500,10 +611,12 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
         state == AppLifecycleState.detached) {
       _timer?.cancel();
       _timer = null;
+      unawaited(_detenerTrackingCliente('Seguimiento pausado'));
       return;
     }
     if (state == AppLifecycleState.resumed && _timer == null) {
       _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
+      unawaited(_refresh());
     }
   }
 
@@ -511,6 +624,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _gpsSubscription?.cancel();
     _msgCtrl.dispose();
     super.dispose();
   }
@@ -647,9 +761,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                     'Taller: ${_estado?['taller_nombre'] ?? taller?['nombre'] ?? '-'}'),
                 Text(
                     'Técnico: ${_estado?['tecnico_nombre'] ?? tecnico?['nombre'] ?? '-'}'),
-                if (ubicacion != null)
-                  Text(
-                      'Ubicación enviada: ${ubicacion['latitud'] ?? '-'}, ${ubicacion['longitud'] ?? '-'}'),
+                if (ubicacion != null) const Text('Ubicación de emergencia registrada'),
                 if (cotizacion != null)
                   Text(
                       'Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
@@ -767,6 +879,22 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
             title: 'Acciones rápidas',
             child: Column(
               children: [
+                Row(
+                  children: [
+                    Icon(
+                      _trackingActivo ? Icons.gps_fixed : Icons.gps_off,
+                      color: _trackingActivo ? Colors.green : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _trackingMensaje,
+                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: _sendGpsAgain,
                   icon: const Icon(Icons.my_location),
