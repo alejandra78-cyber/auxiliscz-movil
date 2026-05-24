@@ -94,7 +94,7 @@ class _TechnicianLocationScreenState extends State<TechnicianLocationScreen> {
     final mapCenter = points.isNotEmpty ? points.first : const LatLng(-17.7833, -63.1821);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('CU19 · Ubicación del técnico')),
+      appBar: AppBar(title: const Text('Ubicación del técnico')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -189,4 +189,3 @@ class _TechnicianLocationScreenState extends State<TechnicianLocationScreen> {
     );
   }
 }
-

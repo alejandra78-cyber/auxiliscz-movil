@@ -91,7 +91,58 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     final state = _stateKey('${_estado?['estado'] ?? ''}');
     return state == 'tecnico_asignado' ||
         state == 'en_camino' ||
+        state == 'en_diagnostico' ||
+        state == 'diagnostico_completado' ||
+        state == 'cotizacion_emitida' ||
+        state == 'cotizacion_aceptada' ||
         state == 'en_proceso';
+  }
+
+  String _estadoAmigable(String? estado) {
+    switch (_stateKey(estado)) {
+      case 'pendiente':
+      case 'pendiente_asignacion':
+      case 'pendiente_respuesta':
+      case 'pendiente_respuesta_taller':
+        return 'Solicitud enviada';
+      case 'pendiente_ia':
+      case 'procesando_ia':
+        return 'Analizando emergencia';
+      case 'buscando_taller':
+        return 'Buscando asistencia';
+      case 'asignada':
+      case 'asignada_taller':
+      case 'aceptada':
+        return 'Taller asignado';
+      case 'tecnico_asignado':
+        return 'Técnico asignado';
+      case 'en_camino':
+        return 'Técnico en camino';
+      case 'en_diagnostico':
+        return 'Técnico en el lugar';
+      case 'diagnostico_completado':
+        return 'Diagnóstico completado';
+      case 'en_proceso':
+      case 'atendido':
+        return 'En atención';
+      case 'cotizacion_emitida':
+        return 'Cotización disponible';
+      case 'esperando_pago':
+      case 'pago_pendiente':
+        return 'Pago pendiente';
+      case 'pagado':
+      case 'servicio_completado':
+      case 'finalizado':
+      case 'completado':
+      case 'completada':
+        return 'Servicio completado';
+      case 'cancelado':
+      case 'cancelada':
+      case 'rechazada':
+        return 'Solicitud cancelada';
+      default:
+        return estado ?? 'Sin estado';
+    }
   }
 
   bool get _canRespondQuote {
@@ -107,7 +158,16 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   bool get _canPay {
     final actions = _asMap(_estado?['acciones_disponibles']);
     if (actions != null && actions['puede_pagar'] is bool) {
-      return actions['puede_pagar'] as bool;
+      final suggested = actions['puede_pagar'] as bool;
+      if (!suggested) return false;
+      final pago = _asMap(_estado?['pago_actual']);
+      final estadoPago = (pago?['estado'] ?? '').toString().trim().toLowerCase();
+      if (estadoPago == 'pendiente_verificacion' ||
+          estadoPago == 'completado' ||
+          estadoPago == 'pagado') {
+        return false;
+      }
+      return true;
     }
     return false;
   }
@@ -386,7 +446,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('CU22 · Procesar pago'),
+        title: const Text('Procesar pago'),
         content: StatefulBuilder(
           builder: (context, setLocalState) => Column(
             mainAxisSize: MainAxisSize.min,
@@ -441,7 +501,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('CU24 · Evaluar servicio'),
+        title: const Text('Evaluar servicio'),
         content: StatefulBuilder(
           builder: (context, setLocalState) => Column(
             mainAxisSize: MainAxisSize.min,
@@ -557,6 +617,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 const SizedBox(height: 8),
                 if (_solicitudes.isNotEmpty)
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     value: selectedValue,
                     decoration: const InputDecoration(labelText: 'Solicitud'),
                     items: _solicitudes.map((s) {
@@ -598,7 +659,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                                   color: AppColors.textMuted, fontSize: 12),
                             ),
                           ),
-                          StatusChip(status: estado),
+                          StatusChip(status: _estadoAmigable(estado)),
                         ],
                       );
                     },
@@ -636,8 +697,13 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 Row(
                   children: [
                     const Text('Estado: '),
-                    StatusChip(status: estado),
+                    StatusChip(status: _estadoAmigable(estado)),
                   ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _estadoAmigable(estado),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
                 Text('Tipo: ${_tipoClientePreferido()}'),
@@ -653,7 +719,14 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 if (cotizacion != null)
                   Text(
                       'Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
-                if (pago != null) Text('Pago: ${pago['estado'] ?? '-'}'),
+                if (pago != null) ...[
+                  Text('Pago: ${pago['estado'] ?? '-'}'),
+                  if (pago['monto'] != null) Text('Monto total: ${pago['monto']}'),
+                  if (pago['comision_plataforma'] != null)
+                    Text('Comisión plataforma (10%): ${pago['comision_plataforma']}'),
+                  if (pago['monto_taller'] != null)
+                    Text('Monto neto taller: ${pago['monto_taller']}'),
+                ],
                 if (cotizacion != null &&
                     _canRespondQuote &&
                     !_isFinalState) ...[
@@ -684,7 +757,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                   ElevatedButton.icon(
                     onPressed: _procesarPago,
                     icon: const Icon(Icons.payments_outlined),
-                    label: const Text('CU22 · Procesar pago'),
+                    label: const Text('Procesar pago'),
                   ),
                 ],
                 if (_canEvaluate) ...[
@@ -692,7 +765,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                   ElevatedButton.icon(
                     onPressed: _evaluarServicio,
                     icon: const Icon(Icons.star_outline),
-                    label: const Text('CU24 · Evaluar servicio'),
+                    label: const Text('Evaluar servicio'),
                   ),
                 ],
                 const SizedBox(height: 10),
@@ -715,9 +788,11 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
           if (historial.isNotEmpty) ...[
             const SizedBox(height: 12),
             SectionCard(
-              title: 'Línea de tiempo',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              title: 'Historial del servicio',
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                title: const Text('Ver historial de cambios'),
                 children: historial
                     .map(
                       (h) => Padding(
@@ -735,7 +810,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
           if (_tecnicoUbicacion != null) ...[
             const SizedBox(height: 12),
             SectionCard(
-              title: 'CU19 · Ubicación del técnico',
+              title: 'Ubicación del técnico',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

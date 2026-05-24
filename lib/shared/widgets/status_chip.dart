@@ -29,6 +29,45 @@ class StatusChip extends StatelessWidget {
 
   _StatusStyle _styleFor(String raw) {
     final s = raw.trim().toLowerCase().replaceAll(' ', '_');
+    // Primero respetamos etiquetas amigables de flujo cliente.
+    if (s == 'solicitud_enviada') {
+      return const _StatusStyle('Solicitud enviada', Color(0xFFFEF3C7), AppColors.warning);
+    }
+    if (s == 'analizando_emergencia') {
+      return const _StatusStyle('Analizando emergencia', Color(0xFFE0E7FF), AppColors.info);
+    }
+    if (s == 'buscando_asistencia') {
+      return const _StatusStyle('Buscando asistencia', Color(0xFFE0E7FF), AppColors.info);
+    }
+    if (s == 'taller_asignado') {
+      return const _StatusStyle('Taller asignado', Color(0xFFDBEAFE), AppColors.primary);
+    }
+    if (s == 'tecnico_asignado') {
+      return const _StatusStyle('Técnico asignado', Color(0xFFDBEAFE), AppColors.primary);
+    }
+    if (s == 'tecnico_en_camino') {
+      return const _StatusStyle('Técnico en camino', Color(0xFFDBEAFE), AppColors.primary);
+    }
+    if (s == 'tecnico_en_el_lugar') {
+      return const _StatusStyle('Técnico en el lugar', Color(0xFFDBEAFE), AppColors.primary);
+    }
+    if (s == 'diagnostico_completado') {
+      return const _StatusStyle('Diagnóstico completado', Color(0xFFE0E7FF), AppColors.info);
+    }
+    if (s == 'cotizacion_disponible') {
+      return const _StatusStyle('Cotización disponible', Color(0xFFE0E7FF), AppColors.info);
+    }
+    if (s == 'pago_pendiente') {
+      return const _StatusStyle('Pago pendiente', Color(0xFFFEF3C7), AppColors.warning);
+    }
+    if (s == 'servicio_completado') {
+      return const _StatusStyle('Servicio completado', Color(0xFFDCFCE7), AppColors.success);
+    }
+    if (s == 'solicitud_cancelada') {
+      return const _StatusStyle('Solicitud cancelada', Color(0xFFFEE2E2), AppColors.danger);
+    }
+
+    // Luego, mapeo por estados internos backend.
     if (s.contains('cancel')) {
       return const _StatusStyle('Cancelado', Color(0xFFFEE2E2), AppColors.danger);
     }

@@ -12,7 +12,7 @@ class EmergenciesApi {
 
   Future<String> reportEmergency({
     required String vehiculoId,
-    required String tipo,
+    String? tipo,
     required double lat,
     required double lng,
     required String descripcion,
@@ -44,7 +44,7 @@ class EmergenciesApi {
 
     final res = await _apiClient.multipart('/emergencias/reportar', fields: {
       'vehiculo_id': vehiculoId,
-      'tipo': tipo,
+      if ((tipo ?? '').trim().isNotEmpty) 'tipo': tipo!.trim(),
       'lat': lat.toString(),
       'lng': lng.toString(),
       'descripcion': descripcion,

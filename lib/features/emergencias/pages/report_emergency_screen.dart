@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,16 +21,6 @@ class ReportEmergencyScreen extends StatefulWidget {
 }
 
 class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
-  static const List<String> _tiposIncidente = [
-    'bateria',
-    'llanta',
-    'motor',
-    'choque',
-    'llave',
-    'otro',
-    'incierto',
-  ];
-
   final _api = EmergenciesApi();
   final _vehicleApi = VehicleApi();
   final _descripcionCtrl = TextEditingController();
@@ -46,7 +37,6 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   Position? _position;
   bool _loading = false;
   bool _recording = false;
-  String _tipoSelected = 'otro';
 
   @override
   void initState() {
@@ -64,7 +54,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       if (!mounted) return;
       setState(() {
         _vehiculos = data;
-        _vehiculoIdSelected = data.isNotEmpty ? data.first.id : null;
+        _vehiculoIdSelected = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -170,7 +160,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       );
       final incidenteId = await _api.reportEmergency(
         vehiculoId: _vehiculoIdSelected!,
-        tipo: _tipoSelected,
+        tipo: 'incierto',
         lat: _position!.latitude,
         lng: _position!.longitude,
         descripcion: _descripcionCtrl.text.trim(),
@@ -215,7 +205,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
         children: [
           SectionCard(
             title: 'Reportar emergencia',
-            subtitle: 'Paso 1: Selecciona vehículo y tipo de incidente.',
+            subtitle: 'Paso 1: Selecciona vehículo. La IA detectará tipo y prioridad.',
             icon: Icons.emergency_share,
             child: Column(
               children: [
@@ -262,6 +252,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                         value: _vehiculoIdSelected,
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Vehículo (placa)'),
+                        hint: const Text('Selecciona un vehículo'),
                         items: _vehiculos
                             .map(
                               (v) => DropdownMenuItem<String>(
@@ -271,22 +262,6 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                             )
                             .toList(),
                         onChanged: (value) => setState(() => _vehiculoIdSelected = value),
-                      ),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                        value: _tipoSelected,
-                        decoration: const InputDecoration(labelText: 'Tipo de incidente'),
-                        items: _tiposIncidente
-                            .map(
-                              (tipo) => DropdownMenuItem<String>(
-                                value: tipo,
-                                child: Text(tipo),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) setState(() => _tipoSelected = value);
-                        },
                       ),
                     ],
                   ),
@@ -352,7 +327,9 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(File(img.path), width: 84, height: 84, fit: BoxFit.cover),
+                              child: kIsWeb
+                                  ? Image.network(img.path, width: 84, height: 84, fit: BoxFit.cover)
+                                  : Image.file(File(img.path), width: 84, height: 84, fit: BoxFit.cover),
                             ),
                             Positioned(
                               right: 0,

@@ -203,7 +203,7 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
             Form(
               key: _formKey,
               child: SectionCard(
-                title: _editing ? 'CU10 · Editar vehículo' : 'Registrar vehículo',
+                title: _editing ? 'Editar vehículo' : 'Registrar vehículo',
                 subtitle: 'Gestiona los vehículos vinculados a tu cuenta.',
                 icon: Icons.directions_car_filled_outlined,
                 child: Column(
