@@ -7,6 +7,7 @@ import '../../../routes/app_routes.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_chip.dart';
+import '../services/emergency_sync_service.dart';
 import '../services/emergencias_api.dart';
 
 class EmergencyStatusScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class EmergencyStatusScreen extends StatefulWidget {
 class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     with WidgetsBindingObserver {
   final _api = EmergenciesApi();
+  final _syncService = EmergencySyncService();
   final _msgCtrl = TextEditingController();
 
   Map<String, dynamic>? _estado;
@@ -31,6 +33,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   bool _refreshing = false;
   bool _loadingSolicitudes = false;
   bool _sending = false;
+  bool _syncingOffline = false;
   Timer? _timer;
 
   static const _cancelableStates = {
@@ -61,12 +64,31 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     WidgetsBinding.instance.addObserver(this);
     _incidenteId = widget.incidenteId.trim();
     _bootstrap();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      await _syncOfflineIfNeeded();
+      await _refresh();
+    });
   }
 
   Future<void> _bootstrap() async {
+    await _syncOfflineIfNeeded(showMessage: true);
     await _cargarSolicitudes();
     await _refresh();
+  }
+
+  Future<void> _syncOfflineIfNeeded({bool showMessage = false}) async {
+    if (_syncingOffline) return;
+    _syncingOffline = true;
+    final synced = await _syncService.syncPending().whenComplete(() {
+      _syncingOffline = false;
+    });
+    if (!mounted || synced <= 0) return;
+    await _cargarSolicitudes();
+    if (showMessage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$synced emergencia(s) offline sincronizada(s)')),
+      );
+    }
   }
 
   String _stateKey(String? value) =>

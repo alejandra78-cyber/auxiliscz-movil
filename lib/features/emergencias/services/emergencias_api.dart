@@ -18,6 +18,8 @@ class EmergenciesApi {
     required String descripcion,
     List<XFile> fotos = const [],
     XFile? audio,
+    String? offlineSyncId,
+    String? fechaLocal,
   }) async {
     final files = <http.MultipartFile>[];
     for (var i = 0; i < fotos.length; i++) {
@@ -48,6 +50,8 @@ class EmergenciesApi {
       'lat': lat.toString(),
       'lng': lng.toString(),
       'descripcion': descripcion,
+      if ((offlineSyncId ?? '').trim().isNotEmpty) 'offline_sync_id': offlineSyncId!.trim(),
+      if ((fechaLocal ?? '').trim().isNotEmpty) 'fecha_local': fechaLocal!.trim(),
     }, files: files);
 
     final raw = await res.stream.bytesToString();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +12,7 @@ import '../../../routes/app_routes.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../vehiculos/services/vehiculos_api.dart';
+import '../services/emergency_sync_service.dart';
 import '../services/emergencias_api.dart';
 
 class ReportEmergencyScreen extends StatefulWidget {
@@ -22,6 +24,7 @@ class ReportEmergencyScreen extends StatefulWidget {
 
 class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   final _api = EmergenciesApi();
+  final _syncService = EmergencySyncService();
   final _vehicleApi = VehicleApi();
   final _descripcionCtrl = TextEditingController();
   final _picker = ImagePicker();
@@ -37,11 +40,32 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
   Position? _position;
   bool _loading = false;
   bool _recording = false;
+  bool _syncingOffline = false;
+  Timer? _offlineSyncTimer;
 
   @override
   void initState() {
     super.initState();
     _loadVehicles();
+    _trySyncPending();
+    _offlineSyncTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => _trySyncPending(showMessage: true),
+    );
+  }
+
+  Future<void> _trySyncPending({bool showMessage = true}) async {
+    if (_syncingOffline) return;
+    _syncingOffline = true;
+    final synced = await _syncService.syncPending().whenComplete(() {
+      _syncingOffline = false;
+    });
+    if (!mounted || synced <= 0) return;
+    if (showMessage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$synced emergencia(s) offline sincronizada(s)')),
+      );
+    }
   }
 
   Future<void> _loadVehicles() async {
@@ -158,6 +182,25 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 15),
       );
+      final hasInternet = await _syncService.hasInternet();
+      if (!hasInternet) {
+        await _syncService.saveOfflineEmergency(
+          vehiculoId: _vehiculoIdSelected!,
+          lat: _position!.latitude,
+          lng: _position!.longitude,
+          descripcion: _descripcionCtrl.text.trim(),
+          fotos: _images,
+          audio: _audio,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Emergencia guardada sin conexión. Se enviará automáticamente cuando vuelva internet.'),
+          ),
+        );
+        Navigator.pushNamed(context, AppRoutes.emergenciaStatus);
+        return;
+      }
       final incidenteId = await _api.reportEmergency(
         vehiculoId: _vehiculoIdSelected!,
         tipo: 'incierto',
@@ -181,6 +224,30 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       Navigator.pushNamed(context, AppRoutes.emergenciaStatus, arguments: incidenteId);
     } catch (e) {
       if (!mounted) return;
+      final text = e.toString();
+      final looksNetworkError = text.contains('SocketException') ||
+          text.contains('Connection refused') ||
+          text.contains('timed out') ||
+          text.contains('Failed host lookup') ||
+          text.contains('ClientException');
+      if (looksNetworkError && _position != null) {
+        await _syncService.saveOfflineEmergency(
+          vehiculoId: _vehiculoIdSelected!,
+          lat: _position!.latitude,
+          lng: _position!.longitude,
+          descripcion: _descripcionCtrl.text.trim(),
+          fotos: _images,
+          audio: _audio,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Emergencia guardada sin conexión. Se enviará automáticamente cuando vuelva internet.'),
+          ),
+        );
+        Navigator.pushNamed(context, AppRoutes.emergenciaStatus);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
@@ -191,6 +258,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
 
   @override
   void dispose() {
+    _offlineSyncTimer?.cancel();
     _descripcionCtrl.dispose();
     _audioRecorder.dispose();
     super.dispose();

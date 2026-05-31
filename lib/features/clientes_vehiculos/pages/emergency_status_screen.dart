@@ -8,6 +8,7 @@ import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../emergencias/services/emergencias_api.dart';
+import '../../emergencias/services/emergency_sync_service.dart';
 
 class EmergencyStatusScreen extends StatefulWidget {
   const EmergencyStatusScreen({super.key, required this.incidenteId});
@@ -21,6 +22,7 @@ class EmergencyStatusScreen extends StatefulWidget {
 class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     with WidgetsBindingObserver {
   final _api = EmergenciesApi();
+  final _syncService = EmergencySyncService();
   final _msgCtrl = TextEditingController();
 
   Map<String, dynamic>? _estado;
@@ -71,8 +73,21 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   }
 
   Future<void> _bootstrap() async {
+    await _syncOfflinePending();
     await _cargarSolicitudes();
     await _refresh();
+  }
+
+  Future<void> _syncOfflinePending() async {
+    try {
+      final synced = await _syncService.syncPending();
+      if (!mounted || synced <= 0) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$synced emergencia(s) pendiente(s) sincronizada(s).')),
+      );
+    } catch (_) {
+      // La pantalla de estado no debe bloquearse si aún no hay conexión.
+    }
   }
 
   String _stateKey(String? value) =>
@@ -115,8 +130,15 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
       case 'procesando_ia':
         return 'Analizando emergencia';
       case 'buscando_taller':
+      case 'buscando_talleres':
         return 'Buscando asistencia';
-      case 'asignada':
+      case 'esperando_respuestas':
+        return 'Esperando respuestas';
+      case 'esperando_cotizaciones':
+        return 'Esperando cotizaciones';
+      case 'cotizaciones_recibidas':
+        return 'Cotizaciones disponibles';
+      case 'taller_confirmado':
       case 'asignada_taller':
       case 'aceptada':
         return 'Taller asignado';
@@ -155,6 +177,13 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     final actions = _asMap(_estado?['acciones_disponibles']);
     if (actions != null && actions['puede_responder_cotizacion'] is bool) {
       return actions['puede_responder_cotizacion'] as bool;
+    }
+    final cotizaciones = _asMapList(_estado?['cotizaciones_disponibles']);
+    if (cotizaciones.isNotEmpty) {
+      return cotizaciones.any((c) {
+        final est = (c['estado'] ?? '').toString().toLowerCase();
+        return est == 'emitida' || est == 'pendiente' || est == 'enviada';
+      });
     }
     final cot = _asMap(_estado?['cotizacion_actual']);
     final est = (cot?['estado'] ?? '').toString().toLowerCase();
@@ -486,8 +515,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     }
   }
 
-  Future<void> _responderCotizacion(bool aceptar) async {
-    final cot = _asMap(_estado?['cotizacion_actual']);
+  Future<void> _responderCotizacion(bool aceptar, [Map<String, dynamic>? cotizacionSeleccionada]) async {
+    final cot = cotizacionSeleccionada ?? _asMap(_estado?['cotizacion_actual']);
     final cotId = (cot?['id'] ?? '').toString().trim();
     if (cotId.isEmpty) return;
 
@@ -687,6 +716,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     final taller = _asMap(_estado?['taller_asignado']);
     final tecnico = _asMap(_estado?['tecnico_asignado']);
     final cotizacion = _asMap(_estado?['cotizacion_actual']);
+    final cotizacionesDisponibles = _asMapList(_estado?['cotizaciones_disponibles']);
     final pago = _asMap(_estado?['pago_actual']);
     final ubicacion = _asMap(_estado?['ubicacion']);
 
@@ -822,6 +852,63 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 if (cotizacion != null)
                   Text(
                       'Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
+                if (cotizacionesDisponibles.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Cotizaciones recibidas',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  ...cotizacionesDisponibles.map((c) {
+                    final estadoCot = (c['estado'] ?? '').toString().toLowerCase();
+                    final puedeResponderEsta = _canRespondQuote &&
+                        (estadoCot == 'enviada' || estadoCot == 'emitida' || estadoCot == 'pendiente');
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.border),
+                        borderRadius: BorderRadius.circular(14),
+                        color: Colors.white,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${c['taller_nombre'] ?? 'Taller'}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text('Monto: ${c['monto'] ?? '-'}'),
+                          Text('Tiempo estimado: ${c['tiempo_estimado'] ?? '-'}'),
+                          Text('Calificación: ${c['taller_calificacion'] ?? '-'}'),
+                          if ((c['observaciones'] ?? '').toString().trim().isNotEmpty)
+                            Text('Observaciones: ${c['observaciones']}'),
+                          Text('Estado: ${c['estado'] ?? '-'}'),
+                          if (puedeResponderEsta && !_isFinalState) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () => _responderCotizacion(true, c),
+                                    child: const Text('Aceptar'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => _responderCotizacion(false, c),
+                                    child: const Text('Rechazar'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
+                ],
                 if (pago != null) ...[
                   Text('Pago: ${pago['estado'] ?? '-'}'),
                   if (pago['monto'] != null) Text('Monto total: ${pago['monto']}'),
@@ -830,7 +917,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                   if (pago['monto_taller'] != null)
                     Text('Monto neto taller: ${pago['monto_taller']}'),
                 ],
-                if (cotizacion != null &&
+                if (cotizacionesDisponibles.isEmpty &&
+                    cotizacion != null &&
                     _canRespondQuote &&
                     !_isFinalState) ...[
                   const SizedBox(height: 10),
