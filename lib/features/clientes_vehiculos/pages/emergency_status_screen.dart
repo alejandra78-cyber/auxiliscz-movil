@@ -792,22 +792,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     }
   }
 
-  Future<void> _abrirCotizaciones() async {
-    if (_incidenteId.isEmpty || _isOfflineSelection) return;
-    final updated = await Navigator.pushNamed(
-      context,
-      AppRoutes.cotizacionesComparar,
-      arguments: _incidenteId,
-    );
-    if (!mounted) return;
-    if (updated == true) {
-      await _refresh();
-      await _cargarSolicitudes();
-    } else {
-      await _refresh();
-    }
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
