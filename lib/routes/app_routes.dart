@@ -4,6 +4,7 @@ import '../features/auth/pages/login_screen.dart';
 import '../features/auth/pages/recover_password_screen.dart';
 import '../features/auth/pages/register_screen.dart';
 import '../features/clientes_vehiculos/pages/emergency_status_screen.dart';
+import '../features/clientes_vehiculos/pages/quote_comparison_screen.dart';
 import '../features/clientes_vehiculos/pages/register_vehicle_screen.dart';
 import '../features/historial/pages/history_services_screen.dart';
 import '../features/emergencias/pages/report_emergency_screen.dart';
@@ -18,6 +19,7 @@ class AppRoutes {
   static const vehiculoRegister = '/vehiculo/register';
   static const emergenciaReport = '/emergencia/report';
   static const emergenciaStatus = '/emergencia-status';
+  static const cotizacionesComparar = '/cliente/cotizaciones/comparar';
   static const tecnicoLocation = '/tecnico/location';
   static const serviciosHistorial = '/cliente/historial-servicios';
 
@@ -56,6 +58,14 @@ class AppRoutes {
           : '';
       return MaterialPageRoute(
         builder: (_) => TechnicianLocationScreen(incidenteId: incidenteId),
+      );
+    }
+    if (settings.name == cotizacionesComparar) {
+      final incidenteId = (settings.arguments is String)
+          ? (settings.arguments as String)
+          : '';
+      return MaterialPageRoute(
+        builder: (_) => QuoteComparisonScreen(incidenteId: incidenteId),
       );
     }
     return null;

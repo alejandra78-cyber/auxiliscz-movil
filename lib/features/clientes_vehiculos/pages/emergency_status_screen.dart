@@ -9,6 +9,7 @@ import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../emergencias/services/emergencias_api.dart';
 import '../../emergencias/services/emergency_sync_service.dart';
+import '../../emergencias/services/offline_emergency_store.dart';
 
 class EmergencyStatusScreen extends StatefulWidget {
   const EmergencyStatusScreen({super.key, required this.incidenteId});
@@ -23,11 +24,13 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     with WidgetsBindingObserver {
   final _api = EmergenciesApi();
   final _syncService = EmergencySyncService();
+  final _offlineStore = OfflineEmergencyStore();
   final _msgCtrl = TextEditingController();
 
   Map<String, dynamic>? _estado;
   Map<String, dynamic>? _tecnicoUbicacion;
   List<Map<String, dynamic>> _solicitudes = const [];
+  List<OfflineEmergency> _offlinePendientes = const [];
   String _incidenteId = '';
   String _error = '';
   bool _refreshing = false;
@@ -69,7 +72,11 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     WidgetsBinding.instance.addObserver(this);
     _incidenteId = widget.incidenteId.trim();
     _bootstrap();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      await _syncOfflinePending();
+      await _cargarSolicitudes();
+      await _refresh();
+    });
   }
 
   Future<void> _bootstrap() async {
@@ -82,6 +89,8 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     try {
       final synced = await _syncService.syncPending();
       if (!mounted || synced <= 0) return;
+      await _cargarSolicitudes();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$synced emergencia(s) pendiente(s) sincronizada(s).')),
       );
@@ -101,6 +110,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     if (actions != null && actions['puede_cancelar'] is bool) {
       return actions['puede_cancelar'] as bool;
     }
+    if (_isOfflineSelection) return false;
     return _cancelableStates.contains(_stateKey('${_estado?['estado'] ?? ''}'));
   }
 
@@ -121,6 +131,14 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
 
   String _estadoAmigable(String? estado) {
     switch (_stateKey(estado)) {
+      case 'pendiente_sincronizacion':
+        return 'Pendiente de sincronización';
+      case 'sincronizando':
+        return 'Sincronizando emergencia';
+      case 'error_sincronizacion':
+        return 'Error de sincronización';
+      case 'conflicto':
+        return 'Conflicto de sincronización';
       case 'pendiente':
       case 'pendiente_asignacion':
       case 'pendiente_respuesta':
@@ -251,6 +269,58 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     return '$fecha · $vehiculoTxt · $tipo';
   }
 
+  bool get _isOfflineSelection => _incidenteId.startsWith('OFF-EMG-');
+
+  Map<String, dynamic> _offlineToSolicitud(OfflineEmergency row) {
+    final tipo = row.descripcion.trim().isEmpty ? 'emergencia' : 'emergencia';
+    return {
+      'incidente_id': row.offlineSyncId,
+      'codigo_visible': row.offlineSyncId,
+      'fecha_reporte': row.fechaLocal,
+      'estado': row.estadoSync,
+      'tipo': tipo,
+      'tipo_cliente': tipo,
+      'vehiculo': {'placa': 'Pendiente'},
+      'offline': true,
+    };
+  }
+
+  Map<String, dynamic> _offlineToEstado(OfflineEmergency row) {
+    return {
+      'id': row.offlineSyncId,
+      'estado': row.estadoSync,
+      'tipo': row.descripcion.trim().isEmpty ? 'emergencia' : 'emergencia',
+      'prioridad': '-',
+      'resumen_ia':
+          'La emergencia está guardada en el dispositivo. La IA se procesará cuando se sincronice con el servidor.',
+      'ubicacion': {
+        'latitud': row.lat,
+        'longitud': row.lng,
+      },
+      'historial': [
+        {
+          'estado_nuevo': row.estadoSync,
+          'creado_en': row.fechaLocal,
+        }
+      ],
+      'acciones_disponibles': {
+        'puede_cancelar': false,
+        'puede_ver_tecnico': false,
+        'puede_pagar': false,
+        'puede_evaluar_servicio': false,
+      },
+      'offline_sync_id': row.offlineSyncId,
+      'error_sync': row.error,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> _loadOfflineSolicitudes() async {
+    final rows = await _offlineStore.list();
+    final pending = rows.where((e) => e.estadoSync != 'sincronizado').toList();
+    _offlinePendientes = pending;
+    return pending.map(_offlineToSolicitud).toList();
+  }
+
   String _tipoClientePreferido() {
     final current =
         _solicitudes.where((e) => '${e['incidente_id']}' == _incidenteId);
@@ -271,18 +341,33 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   Future<void> _cargarSolicitudes() async {
     setState(() => _loadingSolicitudes = true);
     try {
+      final offlineRows = await _loadOfflineSolicitudes();
       final rows = await _api.getTrackRequests();
       if (!mounted) return;
       setState(() {
-        _solicitudes = rows;
+        _solicitudes = [...offlineRows, ...rows];
         _error = '';
-        if (_incidenteId.isEmpty && rows.isNotEmpty) {
-          _incidenteId = '${rows.first['incidente_id']}';
+        final currentExists =
+            _solicitudes.any((s) => '${s['incidente_id']}' == _incidenteId);
+        if ((_incidenteId.isEmpty || !currentExists) && _solicitudes.isNotEmpty) {
+          _incidenteId = '${_solicitudes.first['incidente_id']}';
         }
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      final offlineRows = await _loadOfflineSolicitudes();
+      if (!mounted) return;
+      setState(() {
+        _solicitudes = offlineRows;
+        final currentExists =
+            offlineRows.any((s) => '${s['incidente_id']}' == _incidenteId);
+        if ((_incidenteId.isEmpty || !currentExists) && offlineRows.isNotEmpty) {
+          _incidenteId = '${offlineRows.first['incidente_id']}';
+        }
+        _error = offlineRows.isEmpty
+            ? 'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente.'
+            : '';
+      });
     } finally {
       if (mounted) setState(() => _loadingSolicitudes = false);
     }
@@ -290,6 +375,19 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
 
   Future<void> _refresh() async {
     if (_refreshing || _incidenteId.isEmpty) return;
+    if (_isOfflineSelection) {
+      final local = _offlinePendientes
+          .where((e) => e.offlineSyncId == _incidenteId)
+          .toList();
+      if (local.isNotEmpty && mounted) {
+        setState(() {
+          _estado = _offlineToEstado(local.first);
+          _tecnicoUbicacion = null;
+          _error = '';
+        });
+      }
+      return;
+    }
     _refreshing = true;
     try {
       final data = await _api.getEmergencyStatus(_incidenteId);
@@ -315,9 +413,32 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
         _timer = null;
       }
       unawaited(_sincronizarTrackingCliente());
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      final offlineRows = await _loadOfflineSolicitudes();
+      if (!mounted) return;
+      if (offlineRows.isNotEmpty) {
+        final currentExists =
+            offlineRows.any((s) => '${s['incidente_id']}' == _incidenteId);
+        final selectedId = currentExists
+            ? _incidenteId
+            : '${offlineRows.first['incidente_id']}';
+        final local = _offlinePendientes
+            .where((e) => e.offlineSyncId == selectedId)
+            .toList();
+        setState(() {
+          _solicitudes = offlineRows;
+          _incidenteId = selectedId;
+          _estado = local.isNotEmpty ? _offlineToEstado(local.first) : _estado;
+          _tecnicoUbicacion = null;
+          _error = '';
+        });
+        return;
+      }
+      setState(
+        () => _error =
+            'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente.',
+      );
     } finally {
       _refreshing = false;
     }
@@ -369,8 +490,10 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
 
       // Envía inmediatamente al iniciar el seguimiento.
       final first = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
       );
       await _enviarGpsTracking(first, force: true);
       if (!mounted) return;
@@ -474,8 +597,10 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   Future<void> _sendGpsAgain() async {
     try {
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
       );
       await _api.sendGps(
         incidenteId: _incidenteId,
@@ -515,56 +640,19 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     }
   }
 
-  Future<void> _responderCotizacion(bool aceptar, [Map<String, dynamic>? cotizacionSeleccionada]) async {
-    final cot = cotizacionSeleccionada ?? _asMap(_estado?['cotizacion_actual']);
-    final cotId = (cot?['id'] ?? '').toString().trim();
-    if (cotId.isEmpty) return;
-
-    final obsCtrl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(aceptar ? 'Aceptar cotización' : 'Rechazar cotización'),
-        content: TextField(
-          controller: obsCtrl,
-          maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Observaciones (opcional)'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: !aceptar
-                ? ElevatedButton.styleFrom(backgroundColor: AppColors.danger)
-                : null,
-            child: Text(aceptar ? 'Aceptar' : 'Rechazar'),
-          ),
-        ],
-      ),
+  Future<void> _abrirCotizaciones() async {
+    if (_incidenteId.isEmpty || _isOfflineSelection) return;
+    final updated = await Navigator.pushNamed(
+      context,
+      AppRoutes.cotizacionesComparar,
+      arguments: _incidenteId,
     );
-    if (ok != true) return;
-
-    try {
-      if (aceptar) {
-        await _api.acceptQuote(cotId, observaciones: obsCtrl.text.trim());
-      } else {
-        await _api.rejectQuote(cotId, observaciones: obsCtrl.text.trim());
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            aceptar ? 'Cotización aceptada correctamente' : 'Cotización rechazada correctamente',
-          ),
-        ),
-      );
+    if (!mounted) return;
+    if (updated == true) {
       await _refresh();
       await _cargarSolicitudes();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+    } else {
+      await _refresh();
     }
   }
 
@@ -583,7 +671,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: metodo,
+                initialValue: metodo,
                 items: const [
                   DropdownMenuItem(value: 'qr', child: Text('QR')),
                   DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
@@ -638,7 +726,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: calificacion,
+                initialValue: calificacion,
                 items: const [
                   DropdownMenuItem(value: 1, child: Text('1 estrella')),
                   DropdownMenuItem(value: 2, child: Text('2 estrellas')),
@@ -695,8 +783,28 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
       return;
     }
     if (state == AppLifecycleState.resumed && _timer == null) {
-      _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
-      unawaited(_refresh());
+      _timer = Timer.periodic(const Duration(seconds: 10), (_) async {
+        await _syncOfflinePending();
+        await _cargarSolicitudes();
+        await _refresh();
+      });
+      unawaited(_bootstrap());
+    }
+  }
+
+  Future<void> _abrirCotizaciones() async {
+    if (_incidenteId.isEmpty || _isOfflineSelection) return;
+    final updated = await Navigator.pushNamed(
+      context,
+      AppRoutes.cotizacionesComparar,
+      arguments: _incidenteId,
+    );
+    if (!mounted) return;
+    if (updated == true) {
+      await _refresh();
+      await _cargarSolicitudes();
+    } else {
+      await _refresh();
     }
   }
 
@@ -753,7 +861,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 if (_solicitudes.isNotEmpty)
                   DropdownButtonFormField<String>(
                     isExpanded: true,
-                    value: selectedValue,
+                    initialValue: selectedValue,
                     decoration: const InputDecoration(labelText: 'Solicitud'),
                     items: _solicitudes.map((s) {
                       final id = '${s['incidente_id']}';
@@ -849,65 +957,42 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 Text(
                     'Técnico: ${_estado?['tecnico_nombre'] ?? tecnico?['nombre'] ?? '-'}'),
                 if (ubicacion != null) const Text('Ubicación de emergencia registrada'),
-                if (cotizacion != null)
-                  Text(
-                      'Cotización: ${cotizacion['monto'] ?? '-'} (${cotizacion['estado'] ?? '-'})'),
-                if (cotizacionesDisponibles.isNotEmpty) ...[
+                if (cotizacionesDisponibles.isNotEmpty ||
+                    (cotizacion != null && _canRespondQuote)) ...[
                   const SizedBox(height: 12),
-                  const Text(
-                    'Cotizaciones recibidas',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  ...cotizacionesDisponibles.map((c) {
-                    final estadoCot = (c['estado'] ?? '').toString().toLowerCase();
-                    final puedeResponderEsta = _canRespondQuote &&
-                        (estadoCot == 'enviada' || estadoCot == 'emitida' || estadoCot == 'pendiente');
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.border),
-                        borderRadius: BorderRadius.circular(14),
-                        color: Colors.white,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${c['taller_nombre'] ?? 'Taller'}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.bg,
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          cotizacionesDisponibles.length > 1
+                              ? '${cotizacionesDisponibles.length} cotizaciones recibidas'
+                              : 'Cotización disponible',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Compara precio, tiempo y detalle de cada taller en una pantalla dedicada.',
+                          style: TextStyle(color: AppColors.textMuted),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _abrirCotizaciones,
+                            icon: const Icon(Icons.compare_arrows),
+                            label: const Text('Ver cotizaciones'),
                           ),
-                          Text('Monto: ${c['monto'] ?? '-'}'),
-                          Text('Tiempo estimado: ${c['tiempo_estimado'] ?? '-'}'),
-                          Text('Calificación: ${c['taller_calificacion'] ?? '-'}'),
-                          if ((c['observaciones'] ?? '').toString().trim().isNotEmpty)
-                            Text('Observaciones: ${c['observaciones']}'),
-                          Text('Estado: ${c['estado'] ?? '-'}'),
-                          if (puedeResponderEsta && !_isFinalState) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () => _responderCotizacion(true, c),
-                                    child: const Text('Aceptar'),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () => _responderCotizacion(false, c),
-                                    child: const Text('Rechazar'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  }),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
                 if (pago != null) ...[
                   Text('Pago: ${pago['estado'] ?? '-'}'),
@@ -916,32 +1001,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                     Text('Comisión plataforma (10%): ${pago['comision_plataforma']}'),
                   if (pago['monto_taller'] != null)
                     Text('Monto neto taller: ${pago['monto_taller']}'),
-                ],
-                if (cotizacionesDisponibles.isEmpty &&
-                    cotizacion != null &&
-                    _canRespondQuote &&
-                    !_isFinalState) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _responderCotizacion(true),
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('Aceptar cotización'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _responderCotizacion(false),
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-                          icon: const Icon(Icons.cancel_outlined),
-                          label: const Text('Rechazar cotización'),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
                 if (_canPay && !_isFinalState) ...[
                   const SizedBox(height: 10),

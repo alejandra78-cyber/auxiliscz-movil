@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../emergencias/services/emergencias_api.dart';
@@ -21,22 +24,77 @@ class _TechnicianLocationScreenState extends State<TechnicianLocationScreen> {
   final _api = EmergenciesApi();
   final _mapCtrl = MapController();
   Timer? _timer;
+  WebSocketChannel? _channel;
+  StreamSubscription? _wsSub;
 
   bool _loading = true;
   String _error = '';
+  String _connectionLabel = 'Conectando seguimiento en vivo...';
   Map<String, dynamic>? _data;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _connectWebSocket();
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _load());
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _wsSub?.cancel();
+    _channel?.sink.close();
     super.dispose();
+  }
+
+  void _connectWebSocket() {
+    if (widget.incidenteId.trim().isEmpty) return;
+    try {
+      final uri = Uri.parse('${AppConfig.wsBaseUrl}/api/ws/tracking/${widget.incidenteId}');
+      _channel = WebSocketChannel.connect(uri);
+      _wsSub = _channel!.stream.listen(
+        (event) {
+          final decoded = jsonDecode(event.toString());
+          if (decoded is! Map<String, dynamic>) return;
+          if ((decoded['tipo'] ?? '').toString() != 'ubicacion_tecnico') return;
+          if (!mounted) return;
+          setState(() {
+            _connectionLabel = 'Seguimiento en vivo conectado';
+            _error = '';
+            _loading = false;
+            _data = {
+              ...?_data,
+              'incidente_id': decoded['incidente_id'] ?? widget.incidenteId,
+              'tecnico_nombre': decoded['tecnico_nombre'] ?? _data?['tecnico_nombre'],
+              'estado_servicio': decoded['estado_servicio'] ?? _data?['estado_servicio'],
+              'latitud_tecnico': decoded['latitud_tecnico'] ?? decoded['lat'] ?? _data?['latitud_tecnico'],
+              'longitud_tecnico': decoded['longitud_tecnico'] ?? decoded['lng'] ?? _data?['longitud_tecnico'],
+              'latitud_cliente': decoded['latitud_cliente'] ?? _data?['latitud_cliente'],
+              'longitud_cliente': decoded['longitud_cliente'] ?? _data?['longitud_cliente'],
+              'ultima_actualizacion': decoded['ultima_actualizacion'] ?? decoded['timestamp'],
+              'mensaje': decoded['mensaje'] ?? 'Ubicación del técnico actualizada en tiempo real',
+            };
+          });
+          _centrarMapaSiCorresponde();
+        },
+        onError: (_) {
+          if (!mounted) return;
+          setState(() {
+            _connectionLabel = 'Seguimiento por recarga automática';
+          });
+        },
+        onDone: () {
+          if (!mounted) return;
+          setState(() {
+            _connectionLabel = 'Seguimiento por recarga automática';
+          });
+        },
+        cancelOnError: false,
+      );
+    } catch (_) {
+      _connectionLabel = 'Seguimiento por recarga automática';
+    }
   }
 
   Future<void> _load() async {
@@ -105,7 +163,7 @@ class _TechnicianLocationScreenState extends State<TechnicianLocationScreen> {
           ],
           SectionCard(
             title: 'Seguimiento en tiempo real',
-            subtitle: 'Actualización automática cada 10 segundos.',
+            subtitle: _connectionLabel,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

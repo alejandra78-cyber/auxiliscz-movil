@@ -84,6 +84,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     });
     if (!mounted || synced <= 0) return;
     await _cargarSolicitudes();
+    if (!mounted) return;
     if (showMessage) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$synced emergencia(s) offline sincronizada(s)')),
@@ -365,8 +366,10 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   Future<void> _sendGpsAgain() async {
     try {
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
       );
       await _api.sendGps(
         incidenteId: _incidenteId,
@@ -474,7 +477,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: metodo,
+                initialValue: metodo,
                 items: const [
                   DropdownMenuItem(value: 'qr', child: Text('QR')),
                   DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
@@ -529,7 +532,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: calificacion,
+                initialValue: calificacion,
                 items: const [
                   DropdownMenuItem(value: 1, child: Text('1 estrella')),
                   DropdownMenuItem(value: 2, child: Text('2 estrellas')),
@@ -640,7 +643,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 if (_solicitudes.isNotEmpty)
                   DropdownButtonFormField<String>(
                     isExpanded: true,
-                    value: selectedValue,
+                    initialValue: selectedValue,
                     decoration: const InputDecoration(labelText: 'Solicitud'),
                     items: _solicitudes.map((s) {
                       final id = '${s['incidente_id']}';

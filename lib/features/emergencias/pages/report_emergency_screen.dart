@@ -102,9 +102,12 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
     }
 
     _position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-      timeLimit: const Duration(seconds: 15),
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 15),
+      ),
     );
+    if (!mounted) return;
     setState(() {});
   }
 
@@ -179,8 +182,10 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
     setState(() => _loading = true);
     try {
       _position ??= await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
       );
       final hasInternet = await _syncService.hasInternet();
       if (!hasInternet) {
@@ -317,7 +322,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
                   Column(
                     children: [
                       DropdownButtonFormField<String>(
-                        value: _vehiculoIdSelected,
+                        initialValue: _vehiculoIdSelected,
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Vehículo (placa)'),
                         hint: const Text('Selecciona un vehículo'),

@@ -100,8 +100,8 @@ ThemeData buildAppTheme() {
       side: BorderSide.none,
       labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
       backgroundColor: AppColors.border,
-      selectedColor: AppColors.accent.withOpacity(0.15),
-      disabledColor: AppColors.border.withOpacity(0.6),
+      selectedColor: AppColors.accent.withValues(alpha: 0.15),
+      disabledColor: AppColors.border.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     ),
   );
