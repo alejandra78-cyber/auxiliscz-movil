@@ -17,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _role = '';
+  String _conductorName = '';
   bool _openingConsulta = false;
 
   @override
@@ -26,10 +27,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadRole() async {
-    final token = await AuthApi().getToken();
+    final auth = AuthApi();
+    final token = await auth.getToken();
     if (!mounted || token == null || token.isEmpty) return;
     final role = _extractRole(token);
-    setState(() => _role = role);
+    String conductorName = '';
+    try {
+      final user = await auth.me();
+      conductorName = (user['nombre'] ?? '').toString().trim();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _role = role;
+      _conductorName = conductorName;
+    });
   }
 
   String _extractRole(String token) {
@@ -81,6 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('AuxiliSCZ'),
         actions: [
           IconButton(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.notificaciones),
+            icon: const Icon(Icons.notifications_outlined),
+          ),
+          IconButton(
             onPressed: () async {
               await AuthApi().logout();
               if (context.mounted) {
@@ -98,9 +113,19 @@ class _HomeScreenState extends State<HomeScreen> {
             title: 'Panel del Cliente',
             subtitle: 'Plataforma de emergencias vehiculares',
             icon: Icons.dashboard_customize_outlined,
-            child: Text(
-              'Rol actual: ${_role.isEmpty ? 'sin definir' : _role}',
-              style: const TextStyle(color: AppColors.textMuted),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Conductor: ${_conductorName.isEmpty ? 'No identificado' : _conductorName}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Rol actual: ${_role.isEmpty ? 'sin definir' : _role}',
+                  style: const TextStyle(color: AppColors.textMuted),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),

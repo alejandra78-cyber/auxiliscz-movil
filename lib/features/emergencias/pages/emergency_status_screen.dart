@@ -23,7 +23,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     with WidgetsBindingObserver {
   final _api = EmergenciesApi();
   final _syncService = EmergencySyncService();
-  final _msgCtrl = TextEditingController();
 
   Map<String, dynamic>? _estado;
   Map<String, dynamic>? _tecnicoUbicacion;
@@ -32,7 +31,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   String _error = '';
   bool _refreshing = false;
   bool _loadingSolicitudes = false;
-  bool _sending = false;
   bool _syncingOffline = false;
   Timer? _timer;
 
@@ -388,27 +386,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     }
   }
 
-  Future<void> _sendMessage() async {
-    final txt = _msgCtrl.text.trim();
-    if (txt.isEmpty || _incidenteId.isEmpty) return;
-    setState(() => _sending = true);
-    try {
-      await _api.sendMessage(_incidenteId, txt);
-      if (!mounted) return;
-      _msgCtrl.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mensaje enviado')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
   Future<void> _responderCotizacion(bool aceptar) async {
     final cot = _asMap(_estado?['cotizacion_actual']);
     final cotId = (cot?['id'] ?? '').toString().trim();
@@ -596,7 +573,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
-    _msgCtrl.dispose();
     super.dispose();
   }
 
@@ -628,6 +604,12 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 context, AppRoutes.home, (_) => false);
           },
         ),
+        actions: [
+          IconButton(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.notificaciones),
+            icon: const Icon(Icons.notifications_outlined),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -854,24 +836,23 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
             title: 'Acciones rápidas',
             child: Column(
               children: [
+                ElevatedButton.icon(
+                  onPressed: _incidenteId.isEmpty
+                      ? null
+                      : () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.solicitudChat,
+                            arguments: _incidenteId,
+                          ),
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Chat con el taller'),
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: _sendGpsAgain,
                   icon: const Icon(Icons.my_location),
                   label: const Text('Enviar ubicación nuevamente'),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _msgCtrl,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                      labelText: 'Mensaje para el taller'),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: _sending ? null : _sendMessage,
-                  child: Text(_sending ? 'Enviando...' : 'Enviar mensaje'),
-                ),
-                const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () =>
                       Navigator.pushNamed(context, AppRoutes.emergenciaReport),

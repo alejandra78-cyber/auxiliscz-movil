@@ -19,6 +19,7 @@ class _TecnicoTrackingScreenState extends State<TecnicoTrackingScreen> {
   bool _auto = false;
   String _msg = 'Presiona "Actualizar ahora" para enviar tu ubicación.';
   List<Map<String, dynamic>> _servicios = const [];
+  String _asignacionSeleccionadaId = '';
 
   @override
   void initState() {
@@ -36,7 +37,12 @@ class _TecnicoTrackingScreenState extends State<TecnicoTrackingScreen> {
     try {
       final rows = await _api.getMyActiveServicesAsTechnician();
       if (!mounted) return;
-      setState(() => _servicios = rows);
+      setState(() {
+        _servicios = rows;
+        if (_asignacionSeleccionadaId.isEmpty && rows.isNotEmpty) {
+          _asignacionSeleccionadaId = (rows.first['asignacion_id'] ?? '').toString();
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _msg = '$e');
@@ -45,6 +51,10 @@ class _TecnicoTrackingScreenState extends State<TecnicoTrackingScreen> {
 
   Future<void> _enviarUbicacion() async {
     if (_sending) return;
+    if (_asignacionSeleccionadaId.trim().isEmpty) {
+      setState(() => _msg = 'Selecciona un servicio asignado para compartir ubicación.');
+      return;
+    }
     setState(() => _sending = true);
     try {
       bool enabled = await Geolocator.isLocationServiceEnabled();
@@ -57,11 +67,34 @@ class _TecnicoTrackingScreenState extends State<TecnicoTrackingScreen> {
         throw Exception('Permiso de ubicación denegado');
       }
       final pos = await Geolocator.getCurrentPosition();
-      await _api.updateMyTechnicianLocation(lat: pos.latitude, lng: pos.longitude);
+      await _api.updateMyTechnicianLocation(
+        asignacionId: _asignacionSeleccionadaId,
+        lat: pos.latitude,
+        lng: pos.longitude,
+      );
       if (!mounted) return;
       setState(() {
         _msg = 'Ubicación enviada: ${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}';
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _msg = '$e');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _enviarAccion(String asignacionId, String accion) async {
+    if (_sending || asignacionId.trim().isEmpty) return;
+    setState(() => _sending = true);
+    try {
+      final res = await _api.sendTechnicianTrackingAction(
+        asignacionId: asignacionId,
+        accion: accion,
+      );
+      if (!mounted) return;
+      setState(() => _msg = (res['mensaje'] ?? 'Seguimiento actualizado').toString());
+      await _cargarServicios();
     } catch (e) {
       if (!mounted) return;
       setState(() => _msg = '$e');
@@ -96,10 +129,54 @@ class _TecnicoTrackingScreenState extends State<TecnicoTrackingScreen> {
           if (_servicios.isEmpty)
             const Text('No tienes servicios activos en este momento.'),
           ..._servicios.map(
-            (s) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('${s['codigo_solicitud'] ?? s['incidente_id'] ?? ''}'),
-              subtitle: Text('Estado: ${s['estado'] ?? '-'} · Cliente: ${s['cliente'] ?? '-'}'),
+            (s) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${s['codigo_solicitud'] ?? s['incidente_id'] ?? ''}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Estado: ${s['estado_servicio'] ?? s['estado'] ?? '-'} · Cliente: ${s['cliente_nombre'] ?? s['cliente'] ?? '-'}'),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _asignacionSeleccionadaId = '${s['asignacion_id'] ?? ''}';
+                          _msg = 'Servicio seleccionado para compartir ubicación.';
+                        });
+                      },
+                      icon: Icon(
+                        _asignacionSeleccionadaId == '${s['asignacion_id'] ?? ''}'
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                      ),
+                      label: const Text('Usar este servicio'),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        OutlinedButton(
+                          onPressed: _sending
+                              ? null
+                              : () => _enviarAccion('${s['asignacion_id'] ?? ''}', 'llegue_al_lugar'),
+                          child: const Text('Llegué al lugar'),
+                        ),
+                        OutlinedButton(
+                          onPressed: _sending
+                              ? null
+                              : () => _enviarAccion('${s['asignacion_id'] ?? ''}', 'iniciar_atencion'),
+                          child: const Text('Iniciar atención'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),

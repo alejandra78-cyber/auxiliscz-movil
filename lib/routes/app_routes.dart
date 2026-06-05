@@ -6,8 +6,10 @@ import '../features/auth/pages/register_screen.dart';
 import '../features/clientes_vehiculos/pages/emergency_status_screen.dart';
 import '../features/clientes_vehiculos/pages/quote_comparison_screen.dart';
 import '../features/clientes_vehiculos/pages/register_vehicle_screen.dart';
+import '../features/emergencias/pages/notifications_screen.dart';
 import '../features/historial/pages/history_services_screen.dart';
 import '../features/emergencias/pages/report_emergency_screen.dart';
+import '../features/emergencias/pages/request_chat_screen.dart';
 import '../features/home/pages/home_screen.dart';
 import '../features/seguimiento/pages/technician_location_screen.dart';
 
@@ -22,6 +24,8 @@ class AppRoutes {
   static const cotizacionesComparar = '/cliente/cotizaciones/comparar';
   static const tecnicoLocation = '/tecnico/location';
   static const serviciosHistorial = '/cliente/historial-servicios';
+  static const solicitudChat = '/solicitud/chat';
+  static const notificaciones = '/notificaciones';
 
   static Map<String, WidgetBuilder> get routes => {
         login: (context) => const LoginScreen(),
@@ -33,6 +37,7 @@ class AppRoutes {
         vehiculoRegister: (context) => const RegisterVehicleScreen(),
         emergenciaReport: (context) => const ReportEmergencyScreen(),
         serviciosHistorial: (context) => const HistoryServicesScreen(),
+        notificaciones: (context) => const NotificationsScreen(),
       };
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
@@ -66,6 +71,14 @@ class AppRoutes {
           : '';
       return MaterialPageRoute(
         builder: (_) => QuoteComparisonScreen(incidenteId: incidenteId),
+      );
+    }
+    if (settings.name == solicitudChat) {
+      final incidenteId = (settings.arguments is String)
+          ? (settings.arguments as String)
+          : '';
+      return MaterialPageRoute(
+        builder: (_) => RequestChatScreen(incidenteId: incidenteId),
       );
     }
     return null;

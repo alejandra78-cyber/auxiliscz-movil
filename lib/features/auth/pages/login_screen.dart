@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../../core/notifications/push_notification_service.dart';
 import '../../../routes/app_routes.dart';
-import '../services/auth_api.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/section_card.dart';
+import '../services/auth_api.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
     try {
       await _api.login(email: _emailCtrl.text.trim(), password: _passwordCtrl.text.trim());
+      unawaited(PushNotificationService.instance.registerCurrentDeviceToken());
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } catch (e) {

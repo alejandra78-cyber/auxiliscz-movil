@@ -146,14 +146,33 @@ class EmergenciesApi {
     return decoded.whereType<Map<String, dynamic>>().toList();
   }
 
-  Future<void> updateMyTechnicianLocation({required double lat, required double lng}) async {
-    final res = await _apiClient.patch('/taller/tecnicos/mi-ubicacion', body: {
-      'lat': lat,
-      'lng': lng,
+  Future<void> updateMyTechnicianLocation({
+    required String asignacionId,
+    required double lat,
+    required double lng,
+  }) async {
+    final res = await _apiClient.post('/tecnico/ubicacion', body: {
+      'asignacion_id': asignacionId,
+      'latitud': lat,
+      'longitud': lng,
     });
     if (res.statusCode != 200) {
       throw Exception('No se pudo actualizar ubicación del técnico: ${res.body}');
     }
+  }
+
+  Future<Map<String, dynamic>> sendTechnicianTrackingAction({
+    required String asignacionId,
+    required String accion,
+  }) async {
+    final res = await _apiClient.post('/tecnico/seguimiento/accion', body: {
+      'asignacion_id': asignacionId,
+      'accion': accion,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo actualizar seguimiento: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<List<Map<String, dynamic>>> getMessages(String incidenteId) async {

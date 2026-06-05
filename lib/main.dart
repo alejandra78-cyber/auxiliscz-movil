@@ -1,10 +1,24 @@
+import 'dart:async';
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'core/notifications/push_notification_service.dart';
 import 'core/storage/token_storage.dart';
+import 'firebase_options.dart';
 import 'routes/app_routes.dart';
 import 'shared/theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await PushNotificationService.instance.initialize();
+  } on UnsupportedError catch (error) {
+    debugPrint('Firebase no configurado para esta plataforma: $error');
+  } catch (error) {
+    debugPrint('No se pudo inicializar Firebase: $error');
+  }
   runApp(const AuxiliSczApp());
 }
 
@@ -15,6 +29,7 @@ class AuxiliSczApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'AuxiliSCZ',
+      navigatorKey: appNavigatorKey,
       theme: buildAppTheme(),
       home: const _BootstrapScreen(),
       routes: AppRoutes.routes,
@@ -41,6 +56,7 @@ class _BootstrapScreenState extends State<_BootstrapScreen> {
     final token = await TokenStorage().readToken();
     if (!mounted) return;
     if (token != null && token.isNotEmpty) {
+      unawaited(PushNotificationService.instance.registerCurrentDeviceToken());
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } else {
       Navigator.pushReplacementNamed(context, AppRoutes.login);

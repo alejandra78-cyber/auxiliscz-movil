@@ -44,6 +44,34 @@ class AuthApi {
 
   Future<String?> getToken() => _tokenStorage.readToken();
 
+  Future<Map<String, dynamic>> me() async {
+    final res = await _apiClient.get('/auth/me');
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo obtener usuario actual: ${res.body}');
+    }
+    return ApiClient.decodeJsonMap(res.body);
+  }
+
+  Future<void> registerDeviceToken({required String token, required String plataforma}) async {
+    final res = await _apiClient.post('/auth/device-token', body: {
+      'token': token,
+      'plataforma': plataforma,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo registrar token push: ${res.body}');
+    }
+  }
+
+  Future<void> removeDeviceToken({required String token, required String plataforma}) async {
+    final res = await _apiClient.post('/auth/device-token/remove', body: {
+      'token': token,
+      'plataforma': plataforma,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo desactivar token push: ${res.body}');
+    }
+  }
+
   Future<void> requestRecoveryToken(String email) async {
     final res = await _apiClient.post('/auth/password/recovery-request', body: {
       'email': email,
