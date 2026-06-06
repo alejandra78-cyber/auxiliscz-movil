@@ -49,14 +49,41 @@ class _QuoteComparisonScreenState extends State<QuoteComparisonScreen> {
 
   bool _puedeResponder(Map<String, dynamic> cotizacion) {
     final estado = _estadoCotizacion(cotizacion);
-    return estado == 'enviada' || estado == 'emitida' || estado == 'pendiente';
+    return estado == 'enviada' ||
+        estado == 'emitida' ||
+        estado == 'pendiente' ||
+        estado == 'cotizacion_enviada';
   }
 
   List<Map<String, dynamic>> get _cotizaciones {
-    final rows = _asMapList(_estado?['cotizaciones_disponibles']);
-    if (rows.isNotEmpty) return rows;
+    final rows = [
+      ..._asMapList(_estado?['cotizaciones_disponibles']),
+    ];
     final actual = _asMap(_estado?['cotizacion_actual']);
-    return actual == null ? const [] : [actual];
+    if (actual != null) rows.add(actual);
+
+    final byTaller = <String, Map<String, dynamic>>{};
+    for (final row in rows) {
+      final estado = _estadoCotizacion(row);
+      if (!{
+        'pendiente',
+        'emitida',
+        'enviada',
+        'cotizacion_enviada',
+        'aceptada',
+      }.contains(estado)) {
+        continue;
+      }
+      final key = (row['taller_id'] ?? row['taller_nombre'] ?? row['id'] ?? '')
+          .toString();
+      if (key.isEmpty) continue;
+      final current = byTaller[key];
+      if (current == null ||
+          _estadoCotizacion(current) != 'aceptada' && estado == 'aceptada') {
+        byTaller[key] = row;
+      }
+    }
+    return byTaller.values.toList();
   }
 
   Future<void> _load() async {

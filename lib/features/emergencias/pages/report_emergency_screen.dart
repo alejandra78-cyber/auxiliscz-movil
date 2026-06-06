@@ -189,7 +189,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
       );
       final hasInternet = await _syncService.hasInternet();
       if (!hasInternet) {
-        await _syncService.saveOfflineEmergency(
+        final offline = await _syncService.saveOfflineEmergency(
           vehiculoId: _vehiculoIdSelected!,
           lat: _position!.latitude,
           lng: _position!.longitude,
@@ -203,7 +203,11 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
             content: Text('Emergencia guardada sin conexión. Se enviará automáticamente cuando vuelva internet.'),
           ),
         );
-        Navigator.pushNamed(context, AppRoutes.emergenciaStatus);
+        Navigator.pushNamed(
+          context,
+          AppRoutes.emergenciaStatus,
+          arguments: offline.offlineSyncId,
+        );
         return;
       }
       final incidenteId = await _api.reportEmergency(
@@ -236,7 +240,7 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
           text.contains('Failed host lookup') ||
           text.contains('ClientException');
       if (looksNetworkError && _position != null) {
-        await _syncService.saveOfflineEmergency(
+        final offline = await _syncService.saveOfflineEmergency(
           vehiculoId: _vehiculoIdSelected!,
           lat: _position!.latitude,
           lng: _position!.longitude,
@@ -250,7 +254,11 @@ class _ReportEmergencyScreenState extends State<ReportEmergencyScreen> {
             content: Text('Emergencia guardada sin conexión. Se enviará automáticamente cuando vuelva internet.'),
           ),
         );
-        Navigator.pushNamed(context, AppRoutes.emergenciaStatus);
+        Navigator.pushNamed(
+          context,
+          AppRoutes.emergenciaStatus,
+          arguments: offline.offlineSyncId,
+        );
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(

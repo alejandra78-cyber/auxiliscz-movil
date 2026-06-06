@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 
 import 'core/notifications/push_notification_service.dart';
 import 'core/storage/token_storage.dart';
@@ -11,6 +12,11 @@ import 'shared/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  const stripePublishableKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
+  if (stripePublishableKey.isNotEmpty) {
+    Stripe.publishableKey = stripePublishableKey;
+    await Stripe.instance.applySettings();
+  }
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     await PushNotificationService.instance.initialize();

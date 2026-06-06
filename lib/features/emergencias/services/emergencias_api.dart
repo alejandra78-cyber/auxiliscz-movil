@@ -108,14 +108,16 @@ class EmergenciesApi {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
-  Future<void> cancelEmergency(String incidenteId, {String? motivo}) async {
+  Future<Map<String, dynamic>> cancelEmergency(String incidenteId, {String? motivo}) async {
     final res = await _apiClient.patch(
       '/clientes/solicitudes/$incidenteId/cancelar',
       body: {
         if ((motivo ?? '').trim().isNotEmpty) 'motivo_cancelacion': motivo!.trim(),
       },
     );
-    if (res.statusCode == 200) return;
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
 
     final legacy = await _apiClient.patch(
       '/emergencias/solicitud/$incidenteId/cancelar',
@@ -126,51 +128,13 @@ class EmergenciesApi {
     if (legacy.statusCode != 200) {
       throw Exception('No se pudo cancelar la solicitud: ${legacy.body}');
     }
+    return jsonDecode(legacy.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> getTechnicianLocation(String incidenteId) async {
     final res = await _apiClient.get('/clientes/solicitudes/$incidenteId/ubicacion-tecnico');
     if (res.statusCode != 200) {
       throw Exception('No se pudo obtener ubicación del técnico: ${res.body}');
-    }
-    return jsonDecode(res.body) as Map<String, dynamic>;
-  }
-
-  Future<List<Map<String, dynamic>>> getMyActiveServicesAsTechnician() async {
-    final res = await _apiClient.get('/taller/mi-taller/servicios/activos');
-    if (res.statusCode != 200) {
-      throw Exception('No se pudieron obtener servicios activos: ${res.body}');
-    }
-    final decoded = jsonDecode(res.body);
-    if (decoded is! List) return const [];
-    return decoded.whereType<Map<String, dynamic>>().toList();
-  }
-
-  Future<void> updateMyTechnicianLocation({
-    required String asignacionId,
-    required double lat,
-    required double lng,
-  }) async {
-    final res = await _apiClient.post('/tecnico/ubicacion', body: {
-      'asignacion_id': asignacionId,
-      'latitud': lat,
-      'longitud': lng,
-    });
-    if (res.statusCode != 200) {
-      throw Exception('No se pudo actualizar ubicación del técnico: ${res.body}');
-    }
-  }
-
-  Future<Map<String, dynamic>> sendTechnicianTrackingAction({
-    required String asignacionId,
-    required String accion,
-  }) async {
-    final res = await _apiClient.post('/tecnico/seguimiento/accion', body: {
-      'asignacion_id': asignacionId,
-      'accion': accion,
-    });
-    if (res.statusCode != 200) {
-      throw Exception('No se pudo actualizar seguimiento: ${res.body}');
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
@@ -259,6 +223,22 @@ class EmergenciesApi {
     });
     if (res.statusCode != 200) {
       throw Exception('No se pudo procesar pago: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createStripePaymentSheet(String pagoId) async {
+    final res = await _apiClient.post('/pagos/$pagoId/stripe-payment-sheet', body: {});
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo iniciar Stripe PaymentSheet: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> confirmStripePaymentSheet(String pagoId) async {
+    final res = await _apiClient.post('/pagos/$pagoId/stripe-payment-sheet/confirmar', body: {});
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo confirmar el pago Stripe: ${res.body}');
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
