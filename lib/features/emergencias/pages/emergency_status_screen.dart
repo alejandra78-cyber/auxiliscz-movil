@@ -292,6 +292,57 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     }
   }
 
+  Future<void> _abrirRecomendacionAudio() async {
+    if (_incidenteId.isEmpty || _isOfflineSelection) return;
+    await Navigator.pushNamed(
+      context,
+      AppRoutes.recomendacionTalleres,
+      arguments: _incidenteId,
+    );
+    if (mounted) await _refresh();
+  }
+
+  String _resumenCorto(String? value) {
+    final clean = (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (clean.isEmpty) return 'Sin análisis IA disponible.';
+    final parts = clean.split(RegExp(r'(?<=[.!?])\s+'));
+    final short = parts.take(2).join(' ').trim();
+    if (short.length <= 180) return short;
+    return '${short.substring(0, 177).trim()}...';
+  }
+
+  void _verAnalisisIa(String? value) {
+    final contenido = (value ?? '').trim();
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.72,
+        minChildSize: 0.35,
+        maxChildSize: 0.92,
+        builder: (context, controller) => Padding(
+          padding: const EdgeInsets.fromLTRB(18, 6, 18, 18),
+          child: ListView(
+            controller: controller,
+            children: [
+              Text(
+                'Análisis IA',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                contenido.isEmpty ? 'Sin análisis IA disponible.' : contenido,
+                style: const TextStyle(height: 1.35),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   bool get _canPay {
     final actions = _asMap(_estado?['acciones_disponibles']);
     if (actions != null && actions['puede_pagar'] is bool) {
@@ -448,6 +499,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
   }
 
   Future<void> _cargarSolicitudes() async {
+    if (_paymentSheetActive) return;
     setState(() => _loadingSolicitudes = true);
     try {
       final offlineRows = await _loadOfflineRows();
@@ -457,7 +509,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
       } catch (_) {
         if (offlineRows.isEmpty) rethrow;
       }
-      if (!mounted) return;
+      if (!mounted || _paymentSheetActive) return;
       final offlineItems = offlineRows.map(_offlineToSolicitud).toList();
       setState(() {
         _solicitudes = [...offlineItems, ...serverRows];
@@ -467,10 +519,10 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
         }
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || _paymentSheetActive) return;
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _loadingSolicitudes = false);
+      if (mounted && !_paymentSheetActive) setState(() => _loadingSolicitudes = false);
     }
   }
 
@@ -506,7 +558,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
         }
       }
       final data = await _api.getEmergencyStatus(_incidenteId);
-      if (!mounted) return;
+      if (!mounted || _paymentSheetActive) return;
       setState(() {
         _estado = data;
         _error = '';
@@ -515,11 +567,11 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
       if (_canViewTechnician) {
         try {
           final tech = await _api.getTechnicianLocation(_incidenteId);
-          if (!mounted) return;
+          if (!mounted || _paymentSheetActive) return;
           setState(() => _tecnicoUbicacion = tech);
         } catch (_) {}
       } else {
-        if (!mounted) return;
+        if (!mounted || _paymentSheetActive) return;
         setState(() => _tecnicoUbicacion = null);
       }
 
@@ -633,7 +685,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 initialValue: metodo,
                 items: const [
                   DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
-                  DropdownMenuItem(value: 'stripe', child: Text('Stripe PaymentSheet')),
+                  DropdownMenuItem(value: 'stripe', child: Text('Pago con Tarjeta')),
                 ],
                 onChanged: (v) => setLocalState(() => metodo = (v ?? 'efectivo')),
               ),
@@ -645,7 +697,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 )
               else
                 const Text(
-                  'Se abrirá el modal nativo de Stripe dentro de la app.',
+                  'Se abrirá Stripe para procesar el pago con tarjeta',
                 ),
             ],
           ),
@@ -681,7 +733,9 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
       }
       await _refresh();
       await _cargarSolicitudes();
+      _startAutoRefresh();
     } on StripeException catch (e) {
+      _startAutoRefresh();
       if (!mounted) return;
       final code = e.error.code.toString().toLowerCase();
       final message = code.contains('cancel')
@@ -689,6 +743,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
           : (e.error.localizedMessage ?? 'No se pudo completar el pago con Stripe');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
+      _startAutoRefresh();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
@@ -701,38 +756,49 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     _stopAutoRefresh();
     try {
       FocusManager.instance.primaryFocus?.unfocus();
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      while (_refreshing) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
 
       final sheet = await _api.createStripePaymentSheet(pagoId);
       final publishableKey = (sheet['publishableKey'] ?? '').toString().trim();
       final clientSecret = (sheet['paymentIntentClientSecret'] ?? '').toString().trim();
-      final customerId = (sheet['customerId'] ?? '').toString().trim();
-      final ephemeralKey = (sheet['customerEphemeralKeySecret'] ?? '').toString().trim();
 
-      if (publishableKey.isEmpty || clientSecret.isEmpty || customerId.isEmpty || ephemeralKey.isEmpty) {
+      if (publishableKey.isEmpty || clientSecret.isEmpty) {
         throw Exception('Stripe no devolvió los datos completos para PaymentSheet');
       }
 
       Stripe.publishableKey = publishableKey;
       await Stripe.instance.applySettings();
-      await Future<void>.delayed(const Duration(milliseconds: 350));
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           merchantDisplayName: 'AuxilioSCZ',
           paymentIntentClientSecret: clientSecret,
-          customerId: customerId,
-          customerEphemeralKeySecret: ephemeralKey,
+          primaryButtonLabel: 'Pagar',
+          billingDetails: const BillingDetails(
+            address: Address(
+              city: null,
+              country: 'BO',
+              line1: null,
+              line2: null,
+              postalCode: null,
+              state: null,
+            ),
+          ),
+          billingDetailsCollectionConfiguration:
+              const BillingDetailsCollectionConfiguration(
+            address: AddressCollectionMode.automatic,
+            attachDefaultsToPaymentMethod: true,
+          ),
           style: ThemeMode.system,
           allowsDelayedPaymentMethods: false,
           paymentMethodOrder: const ['card'],
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 150));
       await Stripe.instance.presentPaymentSheet();
       await _api.confirmStripePaymentSheet(pagoId);
     } finally {
       _paymentSheetActive = false;
-      _startAutoRefresh();
     }
   }
 
@@ -844,6 +910,7 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
     final cotizaciones = _cotizacionesParaCliente;
     final pago = _asMap(_estado?['pago_actual']);
     final ubicacion = _asMap(_estado?['ubicacion']);
+    final resumenIa = (_estado?['resumen_ia'] ?? '').toString();
     final tallerNombreVisible = (cotizacion?['taller_nombre'] ??
             taller?['nombre'] ??
             _estado?['taller_nombre'] ??
@@ -984,9 +1051,20 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                 const SizedBox(height: 8),
                 Text('Tipo: ${_tipoClientePreferido()}'),
                 Text('Prioridad: ${_estado?['prioridad'] ?? '-'}'),
-                Text('Resumen IA: ${_estado?['resumen_ia'] ?? '-'}'),
                 Text('Taller: $tallerNombreVisible'),
                 Text('Técnico: $tecnicoNombreVisible'),
+                const SizedBox(height: 8),
+                Text(
+                  _resumenCorto(resumenIa),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.textMuted),
+                ),
+                TextButton.icon(
+                  onPressed: () => _verAnalisisIa(resumenIa),
+                  icon: const Icon(Icons.article_outlined),
+                  label: const Text('Ver análisis IA'),
+                ),
                 if (ubicacion != null)
                   Text(
                       'Ubicación enviada: ${ubicacion['latitud'] ?? '-'}, ${ubicacion['longitud'] ?? '-'}'),
@@ -1089,12 +1167,6 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
                       '+${cotizaciones.length - 3} cotización(es) más',
                       style: const TextStyle(color: AppColors.textMuted),
                     ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _abrirComparacionCotizaciones,
-                    icon: const Icon(Icons.compare_arrows),
-                    label: const Text('Comparar y seleccionar taller'),
-                  ),
                 ],
               ),
             ),
@@ -1160,6 +1232,20 @@ class _EmergencyStatusScreenState extends State<EmergencyStatusScreen>
             title: 'Acciones rápidas',
             child: Column(
               children: [
+                if (cotizaciones.isNotEmpty && _canRespondQuote && !_isFinalState) ...[
+                  ElevatedButton.icon(
+                    onPressed: _abrirComparacionCotizaciones,
+                    icon: const Icon(Icons.compare_arrows),
+                    label: const Text('Comparar y seleccionar taller'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _abrirRecomendacionAudio,
+                    icon: const Icon(Icons.record_voice_over_outlined),
+                    label: const Text('Consultar recomendación por audio'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 ElevatedButton.icon(
                   onPressed: _incidenteId.isEmpty
                       ? null

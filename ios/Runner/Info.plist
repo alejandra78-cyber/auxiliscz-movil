@@ -50,7 +50,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Necesitamos acceso a la cámara para adjuntar evidencia fotográfica.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Necesitamos acceso al micrófono para grabar tu descripción de la emergencia.</string>
+	<string>Necesitamos acceso al micrófono para grabar tu descripción de la emergencia y consultar recomendaciones por voz.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Usamos reconocimiento de voz para interpretar tus consultas de recomendación de talleres.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Necesitamos acceso a galería para adjuntar fotos del incidente.</string>
 </dict>

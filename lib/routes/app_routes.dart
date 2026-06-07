@@ -5,6 +5,7 @@ import '../features/auth/pages/recover_password_screen.dart';
 import '../features/auth/pages/register_screen.dart';
 import '../features/clientes_vehiculos/pages/quote_comparison_screen.dart';
 import '../features/clientes_vehiculos/pages/register_vehicle_screen.dart';
+import '../features/clientes_vehiculos/pages/workshop_recommendation_screen.dart';
 import '../features/emergencias/pages/emergency_status_screen.dart';
 import '../features/emergencias/pages/notifications_screen.dart';
 import '../features/historial/pages/history_services_screen.dart';
@@ -22,6 +23,7 @@ class AppRoutes {
   static const emergenciaReport = '/emergencia/report';
   static const emergenciaStatus = '/emergencia-status';
   static const cotizacionesComparar = '/cliente/cotizaciones/comparar';
+  static const recomendacionTalleres = '/cliente/cotizaciones/recomendacion';
   static const tecnicoLocation = '/tecnico/location';
   static const serviciosHistorial = '/cliente/historial-servicios';
   static const solicitudChat = '/solicitud/chat';
@@ -71,6 +73,14 @@ class AppRoutes {
           : '';
       return MaterialPageRoute(
         builder: (_) => QuoteComparisonScreen(incidenteId: incidenteId),
+      );
+    }
+    if (settings.name == recomendacionTalleres) {
+      final incidenteId = (settings.arguments is String)
+          ? (settings.arguments as String)
+          : '';
+      return MaterialPageRoute(
+        builder: (_) => WorkshopRecommendationScreen(incidenteId: incidenteId),
       );
     }
     if (settings.name == solicitudChat) {

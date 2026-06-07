@@ -189,6 +189,20 @@ class EmergenciesApi {
     return decoded.whereType<Map<String, dynamic>>().toList();
   }
 
+  Future<void> markNotificationRead(String notificationId) async {
+    final res = await _apiClient.patch('/emergencias/notificaciones/$notificationId/leida', body: {});
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo marcar la notificación como leída: ${res.body}');
+    }
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    final res = await _apiClient.patch('/emergencias/notificaciones/leidas', body: {});
+    if (res.statusCode != 200) {
+      throw Exception('No se pudieron marcar las notificaciones como leídas: ${res.body}');
+    }
+  }
+
   Future<Map<String, dynamic>> acceptQuote(String cotizacionId, {String? observaciones}) async {
     final res = await _apiClient.post('/pagos/cliente/cotizaciones/$cotizacionId/aceptar', body: {
       if ((observaciones ?? '').trim().isNotEmpty) 'observaciones': observaciones!.trim(),
@@ -205,6 +219,20 @@ class EmergenciesApi {
     });
     if (res.statusCode != 200) {
       throw Exception('No se pudo rechazar cotización: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> recommendQuoteByAudio({
+    required String incidenteId,
+    required String consulta,
+  }) async {
+    final res = await _apiClient.post('/cliente/cotizaciones/recomendacion-audio', body: {
+      'solicitud_id': incidenteId,
+      'consulta': consulta,
+    });
+    if (res.statusCode != 200) {
+      throw Exception('No se pudo consultar la recomendación: ${res.body}');
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
