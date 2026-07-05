@@ -64,10 +64,12 @@ void _mostrarDialogoAccidente() {
     builder: (ctx) => PopScope(
       canPop: false,
       child: AlertDialog(
+        scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         backgroundColor: Colors.red.shade50,
         title: const Row(
           children: [
-            Icon(Icons.car_crash, color: Colors.red, size: 32),
+            Icon(Icons.car_crash, color: Colors.red, size: 28),
             SizedBox(width: 10),
             Expanded(child: Text('¿Tuviste un accidente?')),
           ],
@@ -79,7 +81,7 @@ void _mostrarDialogoAccidente() {
               'Detectamos un impacto fuerte. Si no respondes, reportaremos '
               'el accidente y avisaremos a tus contactos de emergencia.',
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             ValueListenableBuilder<int>(
               valueListenable: _segundosRestantes,
               builder: (_, seg, __) => Column(
@@ -87,7 +89,7 @@ void _mostrarDialogoAccidente() {
                   Text(
                     '$seg',
                     style: const TextStyle(
-                      fontSize: 56,
+                      fontSize: 48,
                       fontWeight: FontWeight.w800,
                       color: Colors.red,
                     ),

@@ -114,9 +114,9 @@ class CrashDetectionHandler extends TaskHandler {
   void _iniciarAlerta(double magnitud) {
     _segundosRestantes = kSegundosCuentaRegresiva;
 
-    // Intentar traer la app al frente para mostrar el pop-up
-    // (si Android lo bloquea, la notificación de alta prioridad es el respaldo).
-    FlutterForegroundTask.launchApp('/');
+    // Traer la app al frente para mostrar el pop-up SIN forzar navegación
+    // (pasar una ruta reiniciaría la pantalla actual del mapa).
+    FlutterForegroundTask.launchApp();
 
     FlutterForegroundTask.sendDataToMain({
       'event': kEventoChoqueDetectado,
@@ -271,7 +271,7 @@ class CrashDetectionHandler extends TaskHandler {
 
   @override
   void onNotificationPressed() {
-    FlutterForegroundTask.launchApp('/');
+    FlutterForegroundTask.launchApp();
   }
 
   @override
