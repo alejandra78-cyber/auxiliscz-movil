@@ -14,15 +14,16 @@ class AppConfig {
       if (host.isNotEmpty && !localHosts.contains(host)) {
         return 'http://$host:8000/api';
       }
-      return 'http://127.0.0.1:8000/api';
+      return 'http://192.168.0.7:8000/api';
     }
 
-    // Android emulator must use 10.0.2.2 to access host machine.
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8000/api';
-    }
+    // Permite sobreescribir la URL en compilación/dev:
+    //   flutter run --dart-define=API_BASE_URL=http://192.168.0.7:8001/api
+    const fromEnv = String.fromEnvironment('API_BASE_URL');
+    if (fromEnv.isNotEmpty) return fromEnv;
 
-    // iOS simulator can use localhost.
-    return 'http://localhost:8001/api';
+    // APK de producción (descargable): apunta al backend desplegado en Railway
+    // para que funcione en cualquier red, no solo en la WiFi local.
+    return 'https://auxiliscz-backend-production.up.railway.app/api';
   }
 }

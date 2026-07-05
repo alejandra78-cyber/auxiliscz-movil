@@ -24,7 +24,8 @@ android {
         applicationId = "com.example.auxilio_scz"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Detección de choques: flutter_foreground_task 9.x requiere minSdk >= 23.
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

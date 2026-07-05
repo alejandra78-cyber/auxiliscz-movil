@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../services/crash_detection_service.dart';
 import '../services/navigation_helper.dart';
 import '../services/travel_mode_controller.dart';
+import 'emergency_contacts_screen.dart';
 
 /// Pantalla completa del Modo Viaje: mapa centrado en la ubicación actual,
 /// búsqueda de destino y botón para iniciar la navegación externa.
@@ -105,8 +107,27 @@ class _TravelModeScreenState extends State<TravelModeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Modo Viaje'),
+        // Long-press en el título: simula un choque (útil para la demo).
+        title: GestureDetector(
+          onLongPress: () {
+            CrashDetectionService.simularChoque();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Simulando impacto…')),
+            );
+          },
+          child: const Text('Modo Viaje'),
+        ),
         actions: [
+          IconButton(
+            tooltip: 'Contactos de emergencia',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const EmergencyContactsScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.contact_emergency),
+          ),
           IconButton(
             tooltip: 'Desactivar Modo Viaje',
             onPressed: _desactivarModoViaje,
@@ -171,6 +192,27 @@ class _TravelModeScreenState extends State<TravelModeScreen> {
             right: 12,
             child: Column(
               children: [
+                if (_controller.deteccionActiva)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade700,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.sensors, color: Colors.white, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'Detección de choques activa',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
                 Material(
                   elevation: 4,
                   borderRadius: BorderRadius.circular(12),

@@ -6,6 +6,9 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/config/app_config.dart';
+import 'crash_detection_service.dart';
+
 /// Resultado del flujo de permisos de ubicación.
 enum PermisoUbicacionResultado {
   concedido,
@@ -81,15 +84,18 @@ class TravelModeController extends ChangeNotifier {
     }
   }
 
-  /// Activa el Modo Viaje y persiste el estado.
+  /// Activa el Modo Viaje, persiste el estado y arranca el servicio de
+  /// detección de choques en segundo plano (solo Android).
   Future<void> activar() async {
     _activo = true;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefsKeyActivo, true);
+    await _iniciarDeteccionChoques();
   }
 
-  /// Desactiva el Modo Viaje, limpia el destino y persiste el estado.
+  /// Desactiva el Modo Viaje, limpia el destino, persiste el estado y
+  /// detiene limpiamente el servicio de detección de choques.
   Future<void> desactivar() async {
     _activo = false;
     _destino = null;
@@ -97,6 +103,29 @@ class TravelModeController extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefsKeyActivo, false);
+    if (_esAndroid) await CrashDetectionService.detener();
+  }
+
+  bool get _esAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  /// true si el Foreground Service quedó corriendo.
+  bool deteccionActiva = false;
+
+  Future<void> _iniciarDeteccionChoques() async {
+    if (!_esAndroid) return; // sensores en background: solo Android
+    // Android 13+: la notificación persistente requiere este permiso.
+    await CrashDetectionService.solicitarPermisoNotificaciones();
+    deteccionActiva = await CrashDetectionService.iniciar(
+      apiBaseUrl: AppConfig.baseUrl,
+    );
+    notifyListeners();
+  }
+
+  /// Reintenta arrancar la detección (p.ej. si el permiso fue negado antes).
+  Future<bool> reintentarDeteccion() async {
+    await _iniciarDeteccionChoques();
+    return deteccionActiva;
   }
 
   /// Obtiene la ubicación actual (última conocida primero, luego GPS).
