@@ -8,6 +8,7 @@ import '../features/emergencias/pages/report_emergency_screen.dart';
 import '../features/home/pages/home_screen.dart';
 import '../features/tecnico/pages/tecnico_tracking_screen.dart';
 import '../features/vehiculos/pages/register_vehicle_screen.dart';
+import '../features/viaje/pages/travel_mode_screen.dart';
 //import '../features/cliente/pages/history_screen.dart';
 //import '../features/pagos/pages/payment_screen.dart';
 //import '../features/calificaciones/pages/evaluate_service_screen.dart';
@@ -21,6 +22,7 @@ class AppRoutes {
   static const emergenciaReport = '/emergencia/report';
   static const emergenciaStatus = '/emergencia-status';
   static const tecnicoTracking = '/tecnico/tracking';
+  static const modoViaje = '/viaje/modo';
   static const historial = '/cliente/historial';
   static const pago = '/cliente/pago';
   static const evaluar = '/cliente/evaluar';
@@ -33,6 +35,7 @@ class AppRoutes {
         vehiculoRegister: (context) => const RegisterVehicleScreen(),
         emergenciaReport: (context) => const ReportEmergencyScreen(),
         tecnicoTracking: (context) => const TecnicoTrackingScreen(),
+        modoViaje: (context) => const TravelModeScreen(),
         //historial: (context) => const HistoryScreen(),
         //pago: (context) => const PaymentScreen(),
         //evaluar: (context) => const EvaluateServiceScreen(),

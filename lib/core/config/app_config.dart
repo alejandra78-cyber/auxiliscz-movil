@@ -23,6 +23,6 @@ class AppConfig {
     }
 
     // iOS simulator can use localhost.
-    return 'http://localhost:8000/api';
+    return 'http://localhost:8001/api';
   }
 }
